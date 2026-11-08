@@ -2,10 +2,12 @@ package net.kollnig.missioncontrol.ui.compose
 
 import android.content.Context
 import android.view.ContextThemeWrapper
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.ui.graphics.toArgb
+import androidx.core.content.ContextCompat
+import eu.faircode.netguard.Util
 import net.kollnig.missioncontrol.R
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
@@ -16,64 +18,63 @@ import org.robolectric.annotation.Config
 class TrackerControlThemeTest {
     @Test
     @Config(qualifiers = "notnight")
-    fun lightColourSchemeMatchesMaterialThemeAttributes() {
-        val context = themedContext()
-
-        assertSchemeMatchesTheme(context, trackerControlLightColours(context))
+    fun lightSystemUsesVianshieldPalette() {
+        assertVianshieldPalette(themedContext())
     }
 
     @Test
     @Config(qualifiers = "night")
-    fun darkColourSchemeMatchesMaterialThemeAttributes() {
-        val context = themedContext()
+    fun darkSystemStillUsesVianshieldLightPalette() {
+        assertVianshieldPalette(themedContext())
+    }
 
-        assertSchemeMatchesTheme(context, trackerControlDarkColours(context))
+    @Test
+    fun appThemeSelectionForcesLightMode() {
+        Util.setTheme(RuntimeEnvironment.getApplication())
+
+        assertEquals(
+            AppCompatDelegate.MODE_NIGHT_NO,
+            AppCompatDelegate.getDefaultNightMode()
+        )
     }
 
     private fun themedContext(): Context {
-        val application = RuntimeEnvironment.getApplication()
-        return ContextThemeWrapper(application, R.style.AppThemeRed)
-    }
-
-    private fun assertSchemeMatchesTheme(
-        context: Context,
-        scheme: androidx.compose.material3.ColorScheme
-    ) {
-        assertEquals(themeColour(context, android.R.attr.colorBackground), scheme.background.toArgb())
-        assertEquals(
-            themeColour(context, com.google.android.material.R.attr.colorOnBackground),
-            scheme.onBackground.toArgb()
-        )
-        assertEquals(
-            themeColour(context, com.google.android.material.R.attr.colorSurface),
-            scheme.surface.toArgb()
-        )
-        assertEquals(
-            themeColour(context, com.google.android.material.R.attr.colorOnSurface),
-            scheme.onSurface.toArgb()
-        )
-        assertEquals(
-            themeColour(context, com.google.android.material.R.attr.colorSurfaceContainer),
-            scheme.surfaceVariant.toArgb()
-        )
-        assertEquals(
-            themeColour(context, com.google.android.material.R.attr.colorOnSurfaceVariant),
-            scheme.onSurfaceVariant.toArgb()
-        )
-        assertEquals(
-            themeColour(context, com.google.android.material.R.attr.colorOutline),
-            scheme.outline.toArgb()
-        )
-        assertEquals(
-            themeColour(context, com.google.android.material.R.attr.colorOutlineVariant),
-            scheme.outlineVariant.toArgb()
+        return ContextThemeWrapper(
+            RuntimeEnvironment.getApplication(),
+            R.style.AppThemeRed
         )
     }
 
-    private fun themeColour(context: Context, attribute: Int): Int {
-        val value = android.util.TypedValue()
-        assertTrue("Theme attribute $attribute must be resource-backed", context.theme.resolveAttribute(attribute, value, true))
-        assertTrue("Theme attribute $attribute must resolve to a colour resource", value.resourceId != 0)
-        return androidx.core.content.ContextCompat.getColor(context, value.resourceId)
+    private fun assertVianshieldPalette(context: Context) {
+        val scheme = VianshieldLightColorScheme
+
+        assertEquals(0xFF0284C7.toInt(), scheme.primary.toArgb())
+        assertEquals(0xFFE0F2FE.toInt(), scheme.primaryContainer.toArgb())
+        assertEquals(0xFF0369A1.toInt(), scheme.secondary.toArgb())
+        assertEquals(0xFF38BDF8.toInt(), scheme.tertiary.toArgb())
+        assertEquals(0xFFF6FAFD.toInt(), scheme.background.toArgb())
+        assertEquals(0xFFFFFFFF.toInt(), scheme.surface.toArgb())
+        assertEquals(0xFFEFF6FC.toInt(), scheme.surfaceVariant.toArgb())
+        assertEquals(0xFF0F172A.toInt(), scheme.onSurface.toArgb())
+        assertEquals(0xFF475569.toInt(), scheme.onSurfaceVariant.toArgb())
+        assertEquals(0xFFD6E6F5.toInt(), scheme.outline.toArgb())
+        assertEquals(0xFFDC2626.toInt(), scheme.error.toArgb())
+
+        assertEquals(
+            0xFF0284C7.toInt(),
+            ContextCompat.getColor(context, R.color.colorPrimary)
+        )
+        assertEquals(
+            0xFF0369A1.toInt(),
+            ContextCompat.getColor(context, R.color.colorAccent)
+        )
+        assertEquals(
+            0xFFFFFFFF.toInt(),
+            ContextCompat.getColor(context, R.color.bottom_nav_background)
+        )
+        assertEquals(
+            0xFFE0F2FE.toInt(),
+            ContextCompat.getColor(context, R.color.bottom_nav_active_indicator)
+        )
     }
 }
