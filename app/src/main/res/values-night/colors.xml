@@ -1,27 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand red, same as light mode. Used for the app bar fill, where white
-         title text on #B71C1C is the standard Material red-900 pairing. -->
-    <color name="colorPrimary">#B71C1C</color>
-    <color name="colorPrimaryDark">#7f0000</color>
+    <!-- The product intentionally remains in its light theme on dark devices. -->
+    <color name="colorPrimary">#0284C7</color>
+    <color name="colorPrimaryDark">#0369A1</color>
+    <color name="colorPrimaryLight">#E0F2FE</color>
+    <color name="colorAccent">#0369A1</color>
 
-    <color name="colorAccent">#4db6ac</color>
+    <!-- Legacy aliases must resolve identically in every system configuration. -->
+    <color name="colorRedPrimary">@color/colorPrimary</color>
+    <color name="colorRedPrimaryDark">@color/colorPrimaryDark</color>
+    <color name="colorRedAccent">@color/colorAccent</color>
+    <color name="colorRedOn">@color/colorPrimary</color>
+    <color name="colorRedOff">@color/colorAccent</color>
 
-    <!-- colorRedOn feeds ?attr/colorOff, which is used as a *text* colour on
-         the near-black dark background (main.xml, legend.xml,
-         item_vpn_status.xml, item_vpn_empty.xml). The brand red only reaches
-         3.5:1 there, below WCAG AA for body text, so dark mode lightens it to
-         red 400 (6.0:1). The app bar keeps the true brand red via colorPrimary
-         above; this only affects text and state icons. -->
-    <color name="colorRedOn">#EF5350</color>
-
-    <!-- Brighter than colorAccent for low-contrast text links on the dark
-         (near-black) surface, e.g. the "Manage WireGuard profiles" footer
-         link. See issue #560. -->
-    <color name="colorFooterLink">#80cbc4</color>
-
-    <color name="bottom_nav_background">#000000</color>
-    <color name="bottom_nav_active_indicator">#5B1B1B</color>
+    <color name="colorFooterLink">#0369A1</color>
+    <color name="bottom_nav_background">#FFFFFF</color>
+    <color name="bottom_nav_active_indicator">#E0F2FE</color>
 
     <style name="TrackerControlBottomNavActiveIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
         <item name="android:color">@color/bottom_nav_active_indicator</item>
