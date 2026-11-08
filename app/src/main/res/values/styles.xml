@@ -2,33 +2,33 @@
     <attr name="colorOn" format="reference" />
     <attr name="colorOff" format="reference" />
 
-    <style name="AppTheme" parent="Theme.Material3.DayNight">
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
-    </style>
-    <style name="AppTheme.NoActionBar">
+    <style name="AppTheme" parent="BaseTheme" />
+    <style name="AppTheme.NoActionBar" parent="AppTheme">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
 
-
-    <!-- Single base theme. Day/night is handled by Theme.Material3.DayNight;
-         icons are tinted via ?attr/colorControlNormal rather than duplicated
-         as black/white drawables behind theme attributes. -->
-    <style name="BaseTheme" parent="Theme.Material3.DayNight">
+    <!-- One light theme is used for both View and embedded Compose screens. -->
+    <style name="BaseTheme" parent="Theme.Material3.Light">
         <item name="windowActionBar">true</item>
         <item name="windowNoTitle">false</item>
         <item name="android:windowDisablePreview">true</item>
         <item name="actionBarStyle">@style/ActionBar.Red</item>
         <item name="actionBarTheme">@style/ActionBarTheme.Red</item>
         <item name="toolbarStyle">@style/Toolbar.Red</item>
+        <item name="android:statusBarColor">@color/colorPrimaryDark</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">@color/bottom_nav_background</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">@color/bottom_nav_background</item>
+        <item name="android:colorBackground">@color/bottom_nav_background</item>
     </style>
 
+    <!-- Legacy style name retained because existing manifest entries use it. -->
     <style name="AppThemeRed" parent="BaseTheme">
-        <item name="colorPrimary">@color/colorRedPrimary</item>
-        <item name="colorPrimaryDark">@color/colorRedPrimaryDark</item>
-        <item name="colorAccent">@color/colorRedAccent</item>
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
         <item name="colorOn">@color/colorRedOff</item>
         <item name="colorOff">@color/colorRedOn</item>
     </style>
@@ -38,12 +38,12 @@
         <item name="windowNoTitle">true</item>
     </style>
 
-    <style name="AppDialog" parent="Theme.Material3.DayNight.Dialog">
+    <style name="AppDialog" parent="Theme.Material3.Light.Dialog">
         <item name="windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
     </style>
 
-    <!-- Rocket Switch: Material 3 MaterialSwitch with rocket icon as thumbIcon -->
+    <!-- Rocket switch retains its white thumb and uses the Vianshield blue track. -->
     <style name="RocketSwitch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
         <item name="thumbIcon">@drawable/ic_rocket2</item>
         <item name="thumbIconTint">@color/switch_rocket_thumb_icon_color</item>
@@ -52,18 +52,12 @@
         <item name="trackDecorationTint">@android:color/transparent</item>
     </style>
 
-    <style name="RocketSwitch.NoIcon">
+    <style name="RocketSwitch.NoIcon" parent="RocketSwitch">
         <item name="thumbIcon">@null</item>
-        <!-- Restore the standard Material3 track outline (suppressed via
-             transparent trackDecorationTint in RocketSwitch) so the inactive
-             track reads as a switch rather than a bare thumb. Scoped to
-             .NoIcon only (used by the traffic log toggle), leaving the
-             rocket-icon RocketSwitch (main enable switch) untouched.
-             See issue #559. -->
         <item name="trackDecorationTint">?attr/colorOutline</item>
     </style>
 
-    <!-- ActionBar with colorPrimary background and white icons/text -->
+    <!-- Blue app bar with white title, navigation and action icons. -->
     <style name="ActionBar.Red" parent="Widget.Material3.ActionBar.Solid">
         <item name="background">@color/colorPrimary</item>
         <item name="backgroundTint">@color/colorPrimary</item>
