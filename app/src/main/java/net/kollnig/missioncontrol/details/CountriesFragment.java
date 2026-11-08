@@ -175,7 +175,7 @@ public class CountriesFragment extends Fragment {
 
             final RenderOptions renderOptions = new RenderOptions();
             String countries = TextUtils.join(",#", hostCountriesCount.keySet());
-            renderOptions.css(String.format(Locale.ROOT, "#%s { fill: #B71C1C; }", countries.toUpperCase(Locale.ROOT)));
+            renderOptions.css(String.format(Locale.ROOT, "#%s { fill: #0284C7; }", countries.toUpperCase(Locale.ROOT)));
 
             if (Thread.currentThread().isInterrupted())
                 return; // the screen was left before rendering started
