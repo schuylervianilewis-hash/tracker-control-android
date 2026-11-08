@@ -40,6 +40,7 @@ import android.view.View;
 import androidx.activity.ComponentActivity;
 import androidx.activity.EdgeToEdge;
 import androidx.activity.SystemBarStyle;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
@@ -126,6 +127,7 @@ public class ApplicationEx extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         Log.i(TAG, "Create version=" + Util.getSelfVersionName(this) + "/" + Util.getSelfVersionCode(this));
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
@@ -166,7 +168,7 @@ public class ApplicationEx extends Application {
                     EdgeToEdge.enable(
                             (ComponentActivity) activity,
                             SystemBarStyle.dark(statusBarColor),
-                            SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT));
+                            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT));
 
                     // Activities with windowActionBar=true use the theme's ActionBar
                     // and need manual inset handling: set the window background to the
@@ -193,7 +195,7 @@ public class ApplicationEx extends Application {
                             if (content.getChildCount() > 0) {
                                 View child = content.getChildAt(0);
                                 child.setBackgroundColor(
-                                        Common.isNight(activity) ? Color.BLACK : Color.WHITE);
+                                        Color.WHITE);
                             }
                             return insets;
                         });
