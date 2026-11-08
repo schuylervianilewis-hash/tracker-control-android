@@ -1,35 +1,34 @@
 <resources>
-    <color name="colorTrackerControl">#B71C1C</color>
+    <!-- Vianshield light sky-blue brand palette -->
+    <color name="colorTrackerControl">#0284C7</color>
     <color name="black">#000000</color>
 
-    <color name="colorPrimary">#B71C1C</color>
-    <color name="colorPrimaryDark">#7f0000</color>
-    <color name="colorPrimaryLight">#FFCDD2</color>
-    <color name="colorAccent">#004D40</color>
+    <color name="colorPrimary">#0284C7</color>
+    <color name="colorPrimaryDark">#0369A1</color>
+    <color name="colorPrimaryLight">#E0F2FE</color>
+    <color name="colorAccent">#0369A1</color>
 
-    <color name="colorRedPrimary">@color/colorPrimary</color> <!-- or: F44336 -->
-    <color name="colorRedPrimaryDark">@color/colorPrimaryDark</color> <!-- or: D32F2F -->
-    <color name="colorRedAccent">@color/colorAccent</color> <!-- or: 009688 -->
-    <color name="colorRedOn">@color/colorRedPrimary</color>
-    <color name="colorRedOff">@color/colorRedAccent</color>
+    <!-- Legacy resource names retained for existing layouts and selectors. -->
+    <color name="colorRedPrimary">@color/colorPrimary</color>
+    <color name="colorRedPrimaryDark">@color/colorPrimaryDark</color>
+    <color name="colorRedAccent">@color/colorAccent</color>
+    <color name="colorRedOn">@color/colorPrimary</color>
+    <color name="colorRedOff">@color/colorAccent</color>
 
-    <color name="switchTrackDisable">#999</color>
+    <color name="switchTrackDisable">#999999</color>
+    <color name="colorFooterLink">#0369A1</color>
 
-    <!-- Link/action color for footer-style text links (e.g. "Manage WireGuard
-         profiles"). Same as colorAccent in light mode; overridden with a
-         brighter tone in values-night for contrast against a dark surface. -->
-    <color name="colorFooterLink">@color/colorAccent</color>
-
+    <!-- Direction colours are data semantics, not brand colours. -->
     <color name="colorSend">#FF0000</color>
     <color name="colorReceive">#0000FF</color>
-
     <color name="colorGrayed">#AAAAAA</color>
 
+    <!-- Keep blocked/allowed states distinct from the brand palette. -->
     <color name="timeline_blocked">#C62828</color>
     <color name="timeline_allowed">#2E7D32</color>
 
     <color name="bottom_nav_background">#FFFFFF</color>
-    <color name="bottom_nav_active_indicator">#FFCDD2</color>
+    <color name="bottom_nav_active_indicator">#E0F2FE</color>
 
     <style name="TrackerControlBottomNavActiveIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
         <item name="android:color">@color/bottom_nav_active_indicator</item>
