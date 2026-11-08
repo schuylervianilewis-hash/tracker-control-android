@@ -66,6 +66,7 @@ class TrackerControlThemeTest {
         assertEquals(0xFF0284C7.toInt(), ContextCompat.getColor(context, R.color.vian_primary))
         assertEquals(0xFF0369A1.toInt(), ContextCompat.getColor(context, R.color.vian_primary_dark))
         assertEquals(0xFF38BDF8.toInt(), ContextCompat.getColor(context, R.color.vian_primary_light))
+        assertEquals(0xFFE0F2FE.toInt(), ContextCompat.getColor(context, R.color.vian_primary_container))
         assertEquals(0xFFF6FAFD.toInt(), ContextCompat.getColor(context, R.color.vian_background))
         assertEquals(0xFFFFFFFF.toInt(), ContextCompat.getColor(context, R.color.vian_surface))
         assertEquals(0xFFEFF6FC.toInt(), ContextCompat.getColor(context, R.color.vian_surface_variant))
