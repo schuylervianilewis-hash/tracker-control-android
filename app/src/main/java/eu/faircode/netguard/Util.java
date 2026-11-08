@@ -515,10 +515,9 @@ public class Util {
     }
 
     public static void setTheme(Context context) {
-        // Theme is set via the manifest (application-level AppThemeRed, or per-activity
-        // overrides like AppThemeRed.NoActionBar). No setTheme() call here so that
-        // manifest themes are respected.
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+        // Vianshield intentionally uses its light palette regardless of system appearance.
+        // The manifest continues to select the appropriate Material light theme.
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
     }
 
     public static int dips2pixels(int dips, Context context) {
