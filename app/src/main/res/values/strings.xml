@@ -858,4 +858,6 @@ Sincerely,\n\n]]></string>
     <string name="log_connection_wifi">Wi-Fi</string>
     <string name="log_connection_other">Other network</string>
     <string name="log_screen_on">Screen on</string>
+    <string name="app_name" translatable="false">VianShield</string>
+    <string name="app_name_short" translatable="false">VianShield</string>
 </resources>
