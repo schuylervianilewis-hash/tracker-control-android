@@ -48,6 +48,29 @@ class TrackerControlThemeTest {
     private fun assertVianshieldPalette(context: Context) {
         val scheme = VianshieldLightColorScheme
 
+        // Compose and legacy Views must resolve the same canonical resource palette.
+        assertEquals(ContextCompat.getColor(context, R.color.vian_primary), scheme.primary.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_on_primary), scheme.onPrimary.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_primary_container), scheme.primaryContainer.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_on_primary_container), scheme.onPrimaryContainer.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_primary_dark), scheme.secondary.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_on_secondary), scheme.onSecondary.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_primary_container), scheme.secondaryContainer.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_on_primary_container), scheme.onSecondaryContainer.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_primary_light), scheme.tertiary.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_text_primary), scheme.onTertiary.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_background), scheme.background.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_text_primary), scheme.onBackground.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_surface), scheme.surface.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_text_primary), scheme.onSurface.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_surface_variant), scheme.surfaceVariant.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_text_secondary), scheme.onSurfaceVariant.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_border), scheme.outline.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.vian_outline_variant), scheme.outlineVariant.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.status_error), scheme.error.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.status_error_container), scheme.errorContainer.toArgb())
+        assertEquals(ContextCompat.getColor(context, R.color.status_on_error_container), scheme.onErrorContainer.toArgb())
+
         assertEquals(0xFF0284C7.toInt(), scheme.primary.toArgb())
         assertEquals(0xFF06111D.toInt(), scheme.onPrimary.toArgb())
         assertEquals(0xFFE0F2FE.toInt(), scheme.primaryContainer.toArgb())
