@@ -1,0 +1,120 @@
+name: Build TrackerControl GitHub Debug ARM64 APK
+
+on:
+  push:
+    branches: [ master, 'codex/**' ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-arm64-debug:
+    name: Test and Build ARM64 Debug APK
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out TrackerControl
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
+
+      - name: Install pinned Android build tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-37.0" \
+            "build-tools;36.1.0" \
+            "cmake;3.22.1" \
+            "ndk;29.0.14206865"
+
+      - name: Cache Rust dependencies and ARM64 build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/tc-wgbridge-target-arm64
+          key: wgbridge-arm64-${{ runner.os }}-${{ hashFiles('wgbridge-rs/Cargo.lock', 'rust-toolchain.toml', 'app/gradle/wgbridge.gradle') }}
+          restore-keys: |
+            wgbridge-arm64-${{ runner.os }}-
+
+      - name: Set up pinned Rust toolchain
+        run: ./scripts/setup_rust_android.sh
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6.4.0
+
+      - name: Run GithubDebug unit tests
+        run: |
+          ./gradlew :app:testGithubDebugUnitTest \
+            -PtargetAbis=arm64-v8a \
+            --stacktrace
+
+      - name: Assemble ARM64 GithubDebug APK
+        run: |
+          ./gradlew :app:assembleGithubDebug \
+            -PtargetAbis=arm64-v8a \
+            -PcargoTargetDir="$HOME/.cargo/tc-wgbridge-target-arm64" \
+            --stacktrace
+
+      - name: Verify APK, signature, alignment and packaged ABI
+        run: |
+          set -euo pipefail
+
+          APK_DIR="app/build/outputs/apk/github/debug"
+          mapfile -t apks < <(find "$APK_DIR" -maxdepth 1 -type f -name '*.apk' -print)
+          if (( ${#apks[@]} != 1 )); then
+            printf 'Expected exactly one GithubDebug APK, found %d\n' "${#apks[@]}" >&2
+            printf '%s\n' "${apks[@]}" >&2
+            exit 1
+          fi
+
+          apk="${apks[0]}"
+          test -s "$apk"
+
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/36.1.0"
+          "$BUILD_TOOLS/apksigner" verify --verbose "$apk"
+          "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$apk"
+
+          mapfile -t packaged_abis < <(
+            unzip -Z1 "$apk" |
+              awk -F/ '$1 == "lib" && NF >= 3 { print $2 }' |
+              sort -u
+          )
+          if (( ${#packaged_abis[@]} != 1 )) || [[ "${packaged_abis[0]}" != "arm64-v8a" ]]; then
+            printf 'Expected only arm64-v8a native libraries; found: %s\n' "${packaged_abis[*]:-none}" >&2
+            exit 1
+          fi
+
+          for library in libnetguard.so libwgbridge.so; do
+            unzip -Z1 "$apk" | grep -Fxq "lib/arm64-v8a/$library" || {
+              echo "Required ARM64 library missing: $library" >&2
+              exit 1
+            }
+          done
+
+          mkdir -p arm64-artifact
+          cp "$apk" arm64-artifact/TrackerControl-githubDebug-arm64-v8a.apk
+
+      - name: Upload the single ARM64 debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: trackercontrol-github-debug-arm64-v8a
+          path: arm64-artifact/TrackerControl-githubDebug-arm64-v8a.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

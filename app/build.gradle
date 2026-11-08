@@ -1,6 +1,23 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
+// Keep the default multi-ABI build unchanged, but allow CI and local callers to
+// select a smaller target set (for example, -PtargetAbis=arm64-v8a). The same
+// list drives Android packaging and the Rust WireGuard bridge below.
+def supportedTargetAbis = ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
+def selectedTargetAbis = (findProperty('targetAbis') ?: supportedTargetAbis.join(','))
+        .toString()
+        .split(',')
+        .collect { it.trim() }
+        .findAll { !it.isEmpty() }
+
+if (selectedTargetAbis.isEmpty() ||
+        selectedTargetAbis.toSet().size() != selectedTargetAbis.size() ||
+        selectedTargetAbis.any { !supportedTargetAbis.contains(it) }) {
+    throw new GradleException("Invalid -PtargetAbis value. Use a comma-separated subset of: ${supportedTargetAbis.join(', ')}")
+}
+ext.targetAbis = selectedTargetAbis
+
 def ccacheLauncher = file("$projectDir/gradle/ccache-launcher.sh").absolutePath
 
 // WireGuard bridge (Rust/cargo-ndk) build logic. Defines the wgbridgeBuild
@@ -72,8 +89,8 @@ android {
         ndkVersion = wgbridgeNdkVersion
 
         ndk {
-            // https://developer.android.com/ndk/guides/abis.html#sa
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            // Defaults to all supported ABIs; -PtargetAbis can narrow the build.
+            abiFilters(*selectedTargetAbis)
         }
     }
 
