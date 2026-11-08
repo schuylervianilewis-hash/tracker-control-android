@@ -1,12 +1,35 @@
 <resources>
+    <!-- Canonical Vianshield palette. View and Compose themes share these values. -->
+    <color name="vian_primary">#0284C7</color>
+    <color name="vian_primary_dark">#0369A1</color>
+    <color name="vian_primary_light">#38BDF8</color>
+    <color name="vian_primary_container">#E0F2FE</color>
+    <color name="vian_on_primary_container">#0369A1</color>
+    <color name="vian_on_primary">#06111D</color>
+    <color name="vian_on_secondary">#FFFFFF</color>
+    <color name="vian_background">#F6FAFD</color>
+    <color name="vian_surface">#FFFFFF</color>
+    <color name="vian_surface_variant">#EFF6FC</color>
+    <color name="vian_border">#D6E6F5</color>
+    <color name="vian_outline_variant">#E2E8F0</color>
+    <color name="vian_text_primary">#0F172A</color>
+    <color name="vian_text_secondary">#475569</color>
+    <color name="vian_text_tertiary">#64748B</color>
+    <!-- Operational state colours stay distinct from the brand palette. -->
+    <color name="status_connected">#059669</color>
+    <color name="status_starting">#D97706</color>
+    <color name="status_stopped">#64748B</color>
+    <color name="status_error">#DC2626</color>
+    <color name="status_error_container">#FEE2E2</color>
+    <color name="status_on_error_container">#991B1B</color>
     <!-- Vianshield light sky-blue brand palette -->
-    <color name="colorTrackerControl">#0284C7</color>
+    <color name="colorTrackerControl">@color/vian_primary</color>
     <color name="black">#000000</color>
 
-    <color name="colorPrimary">#0284C7</color>
-    <color name="colorPrimaryDark">#0369A1</color>
-    <color name="colorPrimaryLight">#E0F2FE</color>
-    <color name="colorAccent">#0369A1</color>
+    <color name="colorPrimary">@color/vian_primary</color>
+    <color name="colorPrimaryDark">@color/vian_primary_dark</color>
+    <color name="colorPrimaryLight">@color/vian_primary_light</color>
+    <color name="colorAccent">@color/vian_primary_dark</color>
 
     <!-- Legacy resource names retained for existing layouts and selectors. -->
     <color name="colorRedPrimary">@color/colorPrimary</color>
@@ -15,20 +38,20 @@
     <color name="colorRedOn">@color/colorPrimary</color>
     <color name="colorRedOff">@color/colorAccent</color>
 
-    <color name="switchTrackDisable">#999999</color>
-    <color name="colorFooterLink">#0369A1</color>
+    <color name="switchTrackDisable">@color/status_stopped</color>
+    <color name="colorFooterLink">@color/vian_primary_dark</color>
 
     <!-- Direction colours are data semantics, not brand colours. -->
     <color name="colorSend">#FF0000</color>
     <color name="colorReceive">#0000FF</color>
-    <color name="colorGrayed">#AAAAAA</color>
+    <color name="colorGrayed">@color/vian_text_tertiary</color>
 
     <!-- Keep blocked/allowed states distinct from the brand palette. -->
-    <color name="timeline_blocked">#C62828</color>
-    <color name="timeline_allowed">#2E7D32</color>
+    <color name="timeline_blocked">@color/status_error</color>
+    <color name="timeline_allowed">@color/status_connected</color>
 
-    <color name="bottom_nav_background">#FFFFFF</color>
-    <color name="bottom_nav_active_indicator">#E0F2FE</color>
+    <color name="bottom_nav_background">@color/vian_surface</color>
+    <color name="bottom_nav_active_indicator">@color/vian_primary_container</color>
 
     <style name="TrackerControlBottomNavActiveIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
         <item name="android:color">@color/bottom_nav_active_indicator</item>

@@ -38,7 +38,7 @@ private val TrackerControlTypography = Typography()
 
 internal val VianshieldLightColorScheme = lightColorScheme(
     primary = Color(0xFF0284C7),
-    onPrimary = Color.White,
+    onPrimary = Color(0xFF06111D),
     primaryContainer = Color(0xFFE0F2FE),
     onPrimaryContainer = Color(0xFF0369A1),
     secondary = Color(0xFF0369A1),

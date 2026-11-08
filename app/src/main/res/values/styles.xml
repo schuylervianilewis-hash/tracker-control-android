@@ -13,6 +13,36 @@
         <item name="windowActionBar">true</item>
         <item name="windowNoTitle">false</item>
         <item name="android:windowDisablePreview">true</item>
+        <item name="colorPrimary">@color/vian_primary</item>
+        <item name="colorPrimaryDark">@color/vian_primary_dark</item>
+        <item name="colorAccent">@color/vian_primary_dark</item>
+        <item name="colorOnPrimary">@color/vian_on_primary</item>
+        <item name="colorPrimaryContainer">@color/vian_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/vian_on_primary_container</item>
+        <item name="colorSecondary">@color/vian_primary_dark</item>
+        <item name="colorOnSecondary">@color/vian_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/vian_primary_container</item>
+        <item name="colorOnSecondaryContainer">@color/vian_on_primary_container</item>
+        <item name="colorTertiary">@color/vian_primary_light</item>
+        <item name="colorOnTertiary">@color/vian_text_primary</item>
+        <item name="colorSurface">@color/vian_surface</item>
+        <item name="colorOnSurface">@color/vian_text_primary</item>
+        <item name="colorSurfaceVariant">@color/vian_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/vian_text_secondary</item>
+        <item name="colorSurfaceContainer">@color/vian_surface_variant</item>
+        <item name="colorOnBackground">@color/vian_text_primary</item>
+        <item name="colorOn">@color/status_connected</item>
+        <item name="colorOff">@color/status_error</item>
+        <item name="colorOutline">@color/vian_border</item>
+        <item name="colorOutlineVariant">@color/vian_outline_variant</item>
+        <item name="colorError">@color/status_error</item>
+        <item name="colorOnError">@android:color/white</item>
+        <item name="colorErrorContainer">@color/status_error_container</item>
+        <item name="colorOnErrorContainer">@color/status_on_error_container</item>
+
+        <item name="android:colorBackground">@color/vian_background</item>
+        <item name="android:windowBackground">@color/vian_background</item>
+
         <item name="actionBarStyle">@style/ActionBar.Red</item>
         <item name="actionBarTheme">@style/ActionBarTheme.Red</item>
         <item name="toolbarStyle">@style/Toolbar.Red</item>
@@ -20,8 +50,8 @@
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">@color/bottom_nav_background</item>
         <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:windowBackground">@color/bottom_nav_background</item>
-        <item name="android:colorBackground">@color/bottom_nav_background</item>
+        <item name="android:windowBackground">@color/vian_background</item>
+        <item name="android:colorBackground">@color/vian_background</item>
     </style>
 
     <!-- Legacy style name retained because existing manifest entries use it. -->
@@ -29,8 +59,8 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
-        <item name="colorOn">@color/colorRedOff</item>
-        <item name="colorOff">@color/colorRedOn</item>
+        <item name="colorOn">@color/status_connected</item>
+        <item name="colorOff">@color/status_error</item>
     </style>
 
     <style name="AppThemeRed.NoActionBar" parent="AppThemeRed">
@@ -59,13 +89,13 @@
 
     <!-- Blue app bar with white title, navigation and action icons. -->
     <style name="ActionBar.Red" parent="Widget.Material3.ActionBar.Solid">
-        <item name="background">@color/colorPrimary</item>
-        <item name="backgroundTint">@color/colorPrimary</item>
+        <item name="background">@color/colorPrimaryDark</item>
+        <item name="backgroundTint">@color/colorPrimaryDark</item>
         <item name="titleTextStyle">@style/ActionBarTitleText</item>
     </style>
 
     <style name="ActionBarTheme.Red" parent="ThemeOverlay.Material3.Dark.ActionBar">
-        <item name="colorSurface">@color/colorPrimary</item>
+        <item name="colorSurface">@color/colorPrimaryDark</item>
         <item name="colorOnSurface">@android:color/white</item>
         <item name="colorOnSurfaceVariant">@android:color/white</item>
         <item name="android:textColorPrimary">@android:color/white</item>
@@ -74,7 +104,7 @@
     </style>
 
     <style name="Toolbar.Red" parent="Widget.Material3.Toolbar">
-        <item name="android:background">@color/colorPrimary</item>
+        <item name="android:background">@color/colorPrimaryDark</item>
         <item name="titleTextColor">@android:color/white</item>
         <item name="subtitleTextColor">@android:color/white</item>
         <item name="navigationIconTint">@android:color/white</item>

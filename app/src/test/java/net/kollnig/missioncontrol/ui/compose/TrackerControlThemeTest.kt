@@ -49,6 +49,7 @@ class TrackerControlThemeTest {
         val scheme = VianshieldLightColorScheme
 
         assertEquals(0xFF0284C7.toInt(), scheme.primary.toArgb())
+        assertEquals(0xFF06111D.toInt(), scheme.onPrimary.toArgb())
         assertEquals(0xFFE0F2FE.toInt(), scheme.primaryContainer.toArgb())
         assertEquals(0xFF0369A1.toInt(), scheme.secondary.toArgb())
         assertEquals(0xFF38BDF8.toInt(), scheme.tertiary.toArgb())
@@ -59,7 +60,20 @@ class TrackerControlThemeTest {
         assertEquals(0xFF475569.toInt(), scheme.onSurfaceVariant.toArgb())
         assertEquals(0xFFD6E6F5.toInt(), scheme.outline.toArgb())
         assertEquals(0xFFDC2626.toInt(), scheme.error.toArgb())
+        assertEquals(0xFFFEE2E2.toInt(), scheme.errorContainer.toArgb())
+        assertEquals(0xFF991B1B.toInt(), scheme.onErrorContainer.toArgb())
 
+        assertEquals(0xFF0284C7.toInt(), ContextCompat.getColor(context, R.color.vian_primary))
+        assertEquals(0xFF0369A1.toInt(), ContextCompat.getColor(context, R.color.vian_primary_dark))
+        assertEquals(0xFF38BDF8.toInt(), ContextCompat.getColor(context, R.color.vian_primary_light))
+        assertEquals(0xFFF6FAFD.toInt(), ContextCompat.getColor(context, R.color.vian_background))
+        assertEquals(0xFFFFFFFF.toInt(), ContextCompat.getColor(context, R.color.vian_surface))
+        assertEquals(0xFFEFF6FC.toInt(), ContextCompat.getColor(context, R.color.vian_surface_variant))
+        assertEquals(0xFFD6E6F5.toInt(), ContextCompat.getColor(context, R.color.vian_border))
+        assertEquals(0xFF059669.toInt(), ContextCompat.getColor(context, R.color.status_connected))
+        assertEquals(0xFFD97706.toInt(), ContextCompat.getColor(context, R.color.status_starting))
+        assertEquals(0xFF64748B.toInt(), ContextCompat.getColor(context, R.color.status_stopped))
+        assertEquals(0xFFDC2626.toInt(), ContextCompat.getColor(context, R.color.status_error))
         assertEquals(
             0xFF0284C7.toInt(),
             ContextCompat.getColor(context, R.color.colorPrimary)
