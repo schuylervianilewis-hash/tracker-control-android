@@ -195,7 +195,7 @@ public class ApplicationEx extends Application {
                             if (content.getChildCount() > 0) {
                                 View child = content.getChildAt(0);
                                 child.setBackgroundColor(
-                                        Color.WHITE);
+                                        ContextCompat.getColor(activity, R.color.vian_background));
                             }
                             return insets;
                         });

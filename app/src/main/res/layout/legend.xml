@@ -57,7 +57,7 @@
                     android:layout_height="24dp"
                     android:layout_gravity="center_vertical"
                     android:layout_margin="4dp"
-                    android:background="?attr/colorPrimary"
+                    android:background="?attr/colorPrimaryDark"
                     android:src="@drawable/ic_rocket_white_60"
                     android:importantForAccessibility="no"/>
 
