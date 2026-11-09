@@ -1,12 +1,46 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="4370.732"
-    android:viewportHeight="4370.732">
-  <group android:translateX="1289.3658"
-      android:translateY="1289.3658">
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Solid white shield, centered inside the adaptive icon safe area. -->
     <path
-        android:pathData="m1428.07,463.19q0,-40 -28,-68 -28,-28 -68,-28 -40,0 -68,28 -28,28 -28,68 0,40 28,68 28,28 68,28 40,0 68,-28 28,-28 28,-68zM1652.07,175.19q0,249 -75.5,430.5 -75.5,181.5 -253.5,360.5 -81,80 -195,176l-20,379q-2,16 -16,26l-384,224q-7,4 -16,4 -12,0 -23,-9l-64,-64q-13,-14 -8,-32l85,-276 -281,-281 -276,85q-3,1 -9,1 -14,0 -23,-9l-64,-64q-17,-19 -5,-39L248.07,703.19q10,-14 26,-16l379,-20q96,-114 176,-195 188,-187 358,-258 170,-71 431,-71 14,0 24,9.5 10,9.5 10,22.5z"
-        android:fillColor="#ffffff"/>
-  </group>
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,22
+            C46,26 39,29 31,31
+            V49
+            C31,62 40.5,73.5 54,82.5
+            C67.5,73.5 77,62 77,49
+            V31
+            C69,29 62,26 54,22 Z" />
+
+    <!-- Small sVl signature: antique gold s/l with a more prominent purple V. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#9A783D"
+        android:strokeWidth="1.55"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M59.1,69.6
+            C58.5,69 57.3,69 56.8,69.6
+            C56.1,70.3 56.8,71 57.9,71.3
+            C59,71.6 59.4,72.2 58.7,73
+            C58,73.7 56.7,73.4 55.9,72.8" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#76528E"
+        android:strokeWidth="1.9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M60.2,69.2 L62.6,74.2 L65,69.2" />
+
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#9A783D"
+        android:strokeWidth="1.55"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M66.5,68.8 L66.5,74.3" />
 </vector>
