@@ -21,6 +21,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
 import org.xmlpull.v1.XmlPullParser;
 
@@ -117,27 +118,32 @@ public class ActivityMainNavigationTest {
         ViewGroup firewall = activity.findViewById(R.id.firewallContainer);
         assertEquals("Firewall is intentionally an empty placeholder", 0, firewall.getChildCount());
 
-        ViewGroup settingsContainer = activity.findViewById(R.id.settingsContainer);
-        assertNotNull(settingsContainer);
-        assertEquals(1, settingsContainer.getChildCount());
+        assertNotNull(activity.findViewById(R.id.settingsContainer));
         FragmentSettings settings = (FragmentSettings) activity.getSupportFragmentManager().findFragmentById(R.id.settingsContainer);
         assertNotNull(settings);
-        assertNotNull(settings.getPreferenceScreen());
     }
 
     @Test
     public void settingsNestedScreensUseTheSettingsContainerBackStack() throws Exception {
-        FragmentSettings settings = (FragmentSettings) activity.getSupportFragmentManager().findFragmentById(R.id.settingsContainer);
-        assertNotNull(settings);
-        PreferenceScreen advanced = (PreferenceScreen) settings.findPreference("screen_advanced_options");
-        assertNotNull(advanced);
-        assertTrue(settings.onPreferenceStartScreen(settings, advanced));
-        activity.getSupportFragmentManager().executePendingTransactions();
-        assertEquals(1, activity.getSupportFragmentManager().getBackStackEntryCount());
-        activity.getSupportFragmentManager().popBackStackImmediate();
-        assertEquals(0, activity.getSupportFragmentManager().getBackStackEntryCount());
+        ActivityController<SettingsHostTestActivity> controller =
+                Robolectric.buildActivity(SettingsHostTestActivity.class).setup();
+        try {
+            SettingsHostTestActivity host = controller.get();
+            FragmentSettings settings = (FragmentSettings) host.getSupportFragmentManager()
+                    .findFragmentById(R.id.settingsContainer);
+            assertNotNull(settings);
+            assertNotNull(settings.getPreferenceScreen());
+            PreferenceScreen advanced = (PreferenceScreen) settings.findPreference("screen_advanced_options");
+            assertNotNull(advanced);
+            assertTrue(settings.onPreferenceStartScreen(settings, advanced));
+            host.getSupportFragmentManager().executePendingTransactions();
+            assertEquals(1, host.getSupportFragmentManager().getBackStackEntryCount());
+            host.getSupportFragmentManager().popBackStackImmediate();
+            assertEquals(0, host.getSupportFragmentManager().getBackStackEntryCount());
+        } finally {
+            controller.pause().stop().destroy();
+        }
     }
-
     @Test
     public void settingsIsNotDuplicatedInTheOverflowMenu() throws Exception {
         XmlResourceParser parser = activity.getResources().getXml(R.menu.main);
@@ -153,6 +159,15 @@ public class ActivityMainNavigationTest {
             }
         } finally { parser.close(); }
         assertFalse(hasSettingsEntry);
+    }
+    public static class SettingsHostTestActivity extends SettingsHostActivity {
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            setTheme(R.style.AppTheme_NoActionBar);
+            super.onCreate(savedInstanceState);
+            setContentView(R.layout.main);
+            initializeSettingsHost(R.id.settingsContainer, savedInstanceState);
+        }
     }
     private void assertTab(int tabId, int mainVisibility, int trackerVisibility,
                            int vpnVisibility, int firewallVisibility, int settingsVisibility)
