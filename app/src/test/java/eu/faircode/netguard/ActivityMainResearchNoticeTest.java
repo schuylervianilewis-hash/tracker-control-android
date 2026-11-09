@@ -1,7 +1,6 @@
 package eu.faircode.netguard;
 
 import static org.junit.Assert.*;
-import static org.robolectric.Shadows.shadowOf;
 
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -18,6 +17,7 @@ import org.robolectric.annotation.Config;
 import org.robolectric.annotation.GraphicsMode;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.lang.reflect.Field;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 35, qualifiers = "w320dp-h640dp")
@@ -43,9 +43,13 @@ public class ActivityMainResearchNoticeTest {
         assertEquals(View.VISIBLE, notice.getVisibility());
         assertSame(activity.findViewById(R.id.tvPrivateDns).getParent(), notice.getParent());
         assertTrue(notice.getText().toString().contains("Tracker blocking is disabled"));
+        Field bottomNavField = ActivityMain.class.getDeclaredField("bottomNav");
+        bottomNavField.setAccessible(true);
+        bottomNavField.set(activity, activity.findViewById(R.id.bottomNav));
         notice.performClick();
-        assertEquals(ActivitySettings.class.getName(),
-                shadowOf(activity).getNextStartedActivity().getComponent().getClassName());
+        assertEquals(R.id.nav_settings,
+                ((com.google.android.material.bottomnavigation.BottomNavigationView)
+                        activity.findViewById(R.id.bottomNav)).getSelectedItemId());
 
         int width = Math.round(320 * activity.getResources().getDisplayMetrics().density);
         View root = (View) notice.getParent();
