@@ -3,6 +3,7 @@ package eu.faircode.netguard;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import android.content.res.XmlResourceParser;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
@@ -17,6 +18,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import org.xmlpull.v1.XmlPullParser;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -64,6 +66,35 @@ public class ActivityMainNavigationTest {
 
         assertEquals(R.id.nav_settings, navigation.getMenu().getItem(4).getItemId());
         assertEquals("Settings", navigation.getMenu().getItem(4).getTitle().toString());
+    }
+
+    @Test
+    public void firewallAndVpnUseTheirDistinctNavigationIcons() throws Exception {
+        XmlResourceParser parser = activity.getResources().getXml(R.menu.bottom_nav);
+        String firewallIcon = null;
+        String vpnIcon = null;
+        int itemIndex = 0;
+        try {
+            int event;
+            while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
+                if (event != XmlPullParser.START_TAG || !"item".equals(parser.getName()))
+                    continue;
+
+                int iconId = parser.getAttributeResourceValue(
+                        "http://schemas.android.com/apk/res/android", "icon", 0);
+                String iconName = activity.getResources().getResourceEntryName(iconId);
+                if (itemIndex == 1)
+                    firewallIcon = iconName;
+                else if (itemIndex == 2)
+                    vpnIcon = iconName;
+                itemIndex++;
+            }
+        } finally {
+            parser.close();
+        }
+
+        assertEquals("ic_shield_plain", firewallIcon);
+        assertEquals("ic_globe_lock", vpnIcon);
     }
 
     @Test

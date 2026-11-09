@@ -5,11 +5,11 @@
         android:title="@string/tab_main" />
     <item
         android:id="@+id/nav_firewall"
-        android:icon="@drawable/ic_shield_off"
+        android:icon="@drawable/ic_shield_plain"
         android:title="@string/tab_firewall" />
     <item
         android:id="@+id/nav_vpn"
-        android:icon="@drawable/ic_shield_check"
+        android:icon="@drawable/ic_globe_lock"
         android:title="@string/tab_vpn" />
     <item
         android:id="@+id/nav_apps"
