@@ -3,7 +3,7 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Outlined globe; transparent interior preserves the navigation tint cleanly. -->
+    <!-- Outlined globe with distinct meridians and latitude. -->
     <path
         android:fillColor="@android:color/transparent"
         android:strokeColor="#000000"
@@ -17,9 +17,16 @@
         android:strokeWidth="1.4"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M10,2.7c-2,2 -3,4.5 -3,7.3s1,5.3 3,7.3M10,2.7c2,2 3,4.5 3,7.3s-1,5.3 -3,7.3M2.8,10h14.4" />
-    <!-- Small padlock overlaps the globe edge to distinguish VPN from Firewall. -->
+        android:pathData="M10,2.7 C8,4.7 7,7.2 7,10 C7,12.8 8,15.3 10,17.3 M10,2.7 C12,4.7 13,7.2 13,10 C13,12.8 12,15.3 10,17.3 M2.8,10h14.4" />
+    <!-- Shackle is drawn first so the solid lock body cleanly covers its lower ends. -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#000000"
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M15.7,14.5v-1.7a2.3,2.3 0,0 1,4.6 0v1.7" />
     <path
         android:fillColor="#000000"
-        android:pathData="M15.1,13.8v-1.1a2.9,2.9 0,0 1,5.8 0v1.1h0.4c0.7,0 1.2,0.5 1.2,1.2v5.5c0,0.7 -0.5,1.2 -1.2,1.2h-6.6c-0.7,0 -1.2,-0.5 -1.2,-1.2V15c0,-0.7 0.5,-1.2 1.2,-1.2h0.4zM16.5,13.8h3v-1.1a1.5,1.5 0,0 0,-3 0v1.1z" />
+        android:pathData="M14,14.2h8v6.4a1.2,1.2 0,0 1,-1.2 1.2h-5.6a1.2,1.2 0,0 1,-1.2 -1.2z" />
 </vector>
