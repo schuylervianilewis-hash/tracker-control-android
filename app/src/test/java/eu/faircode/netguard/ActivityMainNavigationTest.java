@@ -3,14 +3,12 @@ package eu.faircode.netguard;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.res.XmlResourceParser;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
@@ -119,7 +117,9 @@ public class ActivityMainNavigationTest {
         ViewGroup firewall = activity.findViewById(R.id.firewallContainer);
         assertEquals("Firewall is intentionally an empty placeholder", 0, firewall.getChildCount());
 
-        assertNull(activity.findViewById(R.id.tvSettingsTabPlaceholder));
+        ViewGroup settingsContainer = activity.findViewById(R.id.settingsContainer);
+        assertNotNull(settingsContainer);
+        assertEquals(1, settingsContainer.getChildCount());
         FragmentSettings settings = (FragmentSettings) activity.getSupportFragmentManager().findFragmentById(R.id.settingsContainer);
         assertNotNull(settings);
         assertNotNull(settings.getPreferenceScreen());
