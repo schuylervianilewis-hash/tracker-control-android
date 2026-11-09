@@ -1353,6 +1353,11 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         return intent;
     }
 
+    @Override
+    protected boolean isSettingsHostVisible() {
+        return currentTab == R.id.nav_settings;
+    }
+
     private void updateSettingsToolbar() {
         boolean settings = currentTab == R.id.nav_settings;
         if (tvTitle != null)
@@ -1391,6 +1396,8 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         firewallContainer.setVisibility(firewall ? View.VISIBLE : View.GONE);
         settingsContainer.setVisibility(settings ? View.VISIBLE : View.GONE);
         updateSettingsToolbar();
+        if (settings)
+            refreshSettingsHost();
 
         // Search filters the Tracker list. Collapse it whenever the user leaves
         // Tracker; expanding it from another tab first switches to Tracker.

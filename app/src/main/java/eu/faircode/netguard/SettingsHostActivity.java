@@ -159,6 +159,20 @@ public class SettingsHostActivity extends AppCompatActivity implements SharedPre
             getSupportFragmentManager().beginTransaction().replace(containerId, new FragmentSettings()).commit();
         running = true;
     }
+    protected boolean isSettingsHostVisible() {
+        return true;
+    }
+
+    protected void refreshSettingsHost() {
+        PreferenceScreen screen = getPreferenceScreen();
+        if (screen == null)
+            return;
+        configurePreferences();
+        checkPermissions(null);
+        configureWireGuardProfiles(screen, PreferenceManager.getDefaultSharedPreferences(this));
+        updateWireGuardStatus();
+    }
+
     private PreferenceScreen getPreferenceScreen() {
         Fragment fragment = getSupportFragmentManager().findFragmentById(settingsContainerId);
         return (fragment instanceof PreferenceFragmentCompat ? ((PreferenceFragmentCompat) fragment).getPreferenceScreen() : null);
@@ -600,8 +614,8 @@ public class SettingsHostActivity extends AppCompatActivity implements SharedPre
     protected void onResume() {
         super.onResume();
 
-        if (getPreferenceScreen() != null)
-            checkPermissions(null);
+        if (isSettingsHostVisible())
+            refreshSettingsHost();
 
         // Listen for preference changes
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
@@ -648,7 +662,7 @@ public class SettingsHostActivity extends AppCompatActivity implements SharedPre
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences prefs, String name) {
-        if (getPreferenceScreen() == null)
+        if (!isSettingsHostVisible() || getPreferenceScreen() == null)
             return;
         if ("show_stats".equals(name)) {
             ((TwoStatePreference) getPreferenceScreen().findPreference(name)).setChecked(prefs.getBoolean(name, false));
@@ -1112,7 +1126,9 @@ public class SettingsHostActivity extends AppCompatActivity implements SharedPre
         if ((name == null || "disable_on_call".equals(name)) && prefs.getBoolean("disable_on_call", false))
             if (!Util.hasPhoneStatePermission(this)) {
                 prefs.edit().putBoolean("disable_on_call", false).apply();
-                ((TwoStatePreference) screen.findPreference("disable_on_call")).setChecked(false);
+                TwoStatePreference preference = (TwoStatePreference) screen.findPreference("disable_on_call");
+                if (preference != null)
+                    preference.setChecked(false);
 
                 requestPermissions(new String[] { Manifest.permission.READ_PHONE_STATE }, REQUEST_CALL);
 
