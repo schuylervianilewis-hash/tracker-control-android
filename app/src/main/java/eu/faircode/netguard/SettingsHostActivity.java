@@ -622,10 +622,6 @@ public class SettingsHostActivity extends AppCompatActivity implements SharedPre
         prefs.registerOnSharedPreferenceChangeListener(this);
 
         net.kollnig.missioncontrol.wg.WgEgress.INSTANCE.addStateListener(wgStatusListener);
-        PreferenceScreen screen = getPreferenceScreen();
-        if (screen != null)
-            configureWireGuardProfiles(screen, prefs);
-        updateWireGuardStatus();
     }
 
     @Override
