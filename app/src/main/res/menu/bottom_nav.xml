@@ -2,13 +2,21 @@
     <item
         android:id="@+id/nav_timeline"
         android:icon="@drawable/ic_history"
-        android:title="@string/tab_timeline" />
+        android:title="@string/tab_main" />
     <item
-        android:id="@+id/nav_apps"
-        android:icon="@drawable/ic_apps"
-        android:title="@string/tab_apps" />
+        android:id="@+id/nav_firewall"
+        android:icon="@drawable/ic_shield_off"
+        android:title="@string/tab_firewall" />
     <item
         android:id="@+id/nav_vpn"
         android:icon="@drawable/ic_shield_check"
         android:title="@string/tab_vpn" />
+    <item
+        android:id="@+id/nav_apps"
+        android:icon="@drawable/ic_apps"
+        android:title="@string/tab_tracker" />
+    <item
+        android:id="@+id/nav_settings"
+        android:icon="@android:drawable/ic_menu_preferences"
+        android:title="@string/tab_settings" />
 </menu>

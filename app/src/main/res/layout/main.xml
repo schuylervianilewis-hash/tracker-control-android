@@ -44,8 +44,8 @@
         android:visibility="gone" />
 
     <!--
-        Outside llApps on purpose: that container is hidden on the Timeline and
-        VPN tabs, and Timeline is where the app lands. A prompt to grant a
+        Outside llApps on purpose: that container is shown only on Tracker. Main is
+        the landing tab, and permission prompts must remain visible on every tab. A prompt to grant a
         permission has to be visible whichever tab the user is on.
     -->
     <TextView
@@ -64,8 +64,8 @@
         android:visibility="gone" />
 
     <!--
-        Outside llApps on purpose: that container is hidden on the Timeline and
-        VPN tabs, and Timeline is where the app lands. A warning about a broken
+        Outside llApps on purpose: that container is shown only on Tracker. Main is
+        the landing tab, and permission prompts must remain visible on every tab. A warning about a broken
         configuration has to be visible whichever tab the user is on.
     -->
     <TextView
@@ -238,6 +238,30 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/firewallContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/settingsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvSettingsTabPlaceholder"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:padding="24dp"
+                android:text="@string/settings_tab_placeholder"
+                android:textAppearance="@style/TextMedium"
+                android:textColor="?attr/colorOff" />
+        </FrameLayout>
 
         <View
             android:id="@+id/vwPopupAnchor"

@@ -125,6 +125,8 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
     private View llAppsContent;
     private View timelineContainer;
     private View vpnContainer;
+    private View firewallContainer;
+    private View settingsContainer;
     private int currentTab = R.id.nav_timeline;
     private boolean vpnFragmentRequested = false;
     private AlertDialog dialogVpn = null;
@@ -425,6 +427,8 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         llAppsContent = findViewById(R.id.llApps);
         timelineContainer = findViewById(R.id.timelineContainer);
         vpnContainer = findViewById(R.id.vpnContainer);
+        firewallContainer = findViewById(R.id.firewallContainer);
+        settingsContainer = findViewById(R.id.settingsContainer);
         bottomNav = findViewById(R.id.bottomNav);
 
         // Pad the bottom navigation by the system bar insets so it isn't
@@ -455,8 +459,10 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (currentTab != R.id.nav_apps && bottomNav != null) {
-                    bottomNav.setSelectedItemId(R.id.nav_apps);
+                // Main is the home tab. Return to it from another destination;
+                // a second Back press performs the normal Activity back action.
+                if (currentTab != R.id.nav_timeline && bottomNav != null) {
+                    bottomNav.setSelectedItemId(R.id.nav_timeline);
                     return;
                 }
                 setEnabled(false);
@@ -466,8 +472,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
 
         int initialTab;
         if (savedInstanceState == null) {
-            // Land new users on Timeline; keep returning users there too — it is
-            // the "what's happening now" dashboard. Apps is one tap away.
+            // Main is the landing tab; Tracker remains one tap away.
             initialTab = R.id.nav_timeline;
         } else {
             initialTab = bottomNav.getSelectedItemId();
@@ -1133,7 +1138,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         menuSearch.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
             @Override
             public boolean onMenuItemActionExpand(MenuItem item) {
-                // Search filters the app list, so jump to the Apps tab when
+                // Search filters the app list, so jump to the Tracker tab when
                 // the user expands it from another tab. Post the switch so the
                 // SearchView finishes expanding (and grabs focus + opens
                 // the keyboard) on the current frame; otherwise the layout
@@ -1212,8 +1217,8 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
     public boolean onPrepareOptionsMenu(Menu menu) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
-        // Filter/sort are list-specific; hide them outside Apps. Search stays
-        // visible — clicking it on another tab jumps to Apps.
+        // Filter/sort are list-specific; hide them outside Tracker. Search stays
+        // visible — clicking it on another tab jumps to Tracker.
         MenuItem filterItem = menu.findItem(R.id.menu_filter);
         MenuItem sortItem = menu.findItem(R.id.menu_sort);
         boolean showingApps = currentTab == R.id.nav_apps;
@@ -1342,20 +1347,27 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
     }
 
     private void selectTab(int itemId) {
-        boolean timeline = itemId == R.id.nav_timeline;
+        boolean main = itemId == R.id.nav_timeline;
+        boolean firewall = itemId == R.id.nav_firewall;
         boolean vpn = itemId == R.id.nav_vpn;
+        boolean tracker = itemId == R.id.nav_apps;
+        boolean settings = itemId == R.id.nav_settings;
         currentTab = itemId;
+
         if (vpn)
             ensureVpnFragment();
-        llAppsContent.setVisibility(!timeline && !vpn ? View.VISIBLE : View.GONE);
-        timelineContainer.setVisibility(timeline ? View.VISIBLE : View.GONE);
-        vpnContainer.setVisibility(vpn ? View.VISIBLE : View.GONE);
 
-        // Collapse SearchView only when leaving Apps. When the user opens the
-        // SearchView from another tab we switch *to* Apps; in
-        // that path we must NOT collapse, otherwise the freshly-expanded
-        // SearchView is torn down before it can take focus.
-        if ((timeline || vpn) && menuSearch != null && menuSearch.isActionViewExpanded())
+        // The original TrackerControl app list and Timeline remain intact;
+        // Firewall and Settings are separate destinations with their own views.
+        llAppsContent.setVisibility(tracker ? View.VISIBLE : View.GONE);
+        timelineContainer.setVisibility(main ? View.VISIBLE : View.GONE);
+        vpnContainer.setVisibility(vpn ? View.VISIBLE : View.GONE);
+        firewallContainer.setVisibility(firewall ? View.VISIBLE : View.GONE);
+        settingsContainer.setVisibility(settings ? View.VISIBLE : View.GONE);
+
+        // Search filters the Tracker list. Collapse it whenever the user leaves
+        // Tracker; expanding it from another tab first switches to Tracker.
+        if (!tracker && menuSearch != null && menuSearch.isActionViewExpanded())
             menuSearch.collapseActionView();
 
         // No invalidateOptionsMenu(): filter/sort live in the overflow,
