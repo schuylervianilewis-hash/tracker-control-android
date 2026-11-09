@@ -102,7 +102,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-public class ActivityMain extends AppCompatActivity implements SharedPreferences.OnSharedPreferenceChangeListener {
+public class ActivityMain extends SettingsHostActivity implements SharedPreferences.OnSharedPreferenceChangeListener {
     private static final String TAG = "TrackerControl.Main";
 
     private static int[] TITLES = new int[] {
@@ -115,6 +115,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
     private boolean running = false;
     private ImageView ivIcon;
     private TextView tvTitle;
+    private CharSequence mainToolbarTitle;
     private ImageView ivQueue;
     private MaterialSwitch swEnabled;
     private ImageView ivMetered;
@@ -279,6 +280,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         // Get daily changing title
         if (!Util.isPlayStoreInstall())
             tvTitle.setText(TITLES[Common.dayOfYear() % TITLES.length]);
+        mainToolbarTitle = tvTitle.getText();
 
         // Icon
         ivIcon.setOnLongClickListener(new View.OnLongClickListener() {
@@ -429,6 +431,8 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         vpnContainer = findViewById(R.id.vpnContainer);
         firewallContainer = findViewById(R.id.firewallContainer);
         settingsContainer = findViewById(R.id.settingsContainer);
+        initializeSettingsHost(R.id.settingsContainer, savedInstanceState);
+        getSupportFragmentManager().addOnBackStackChangedListener(this::updateSettingsToolbar);
         bottomNav = findViewById(R.id.bottomNav);
 
         // Pad the bottom navigation by the system bar insets so it isn't
@@ -461,6 +465,10 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
             public void handleOnBackPressed() {
                 // Main is the home tab. Return to it from another destination;
                 // a second Back press performs the normal Activity back action.
+                if (currentTab == R.id.nav_settings && getSupportFragmentManager().getBackStackEntryCount() > 0) {
+                    getSupportFragmentManager().popBackStack();
+                    return;
+                }
                 if (currentTab != R.id.nav_timeline && bottomNav != null) {
                     bottomNav.setSelectedItemId(R.id.nav_timeline);
                     return;
@@ -531,9 +539,10 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
             public void onClick(View v) {
                 Intent settings;
                 if (privateDnsWarningState
-                        == ServiceSinkhole.PRIVATE_DNS_WARNING_ALLOWED_DOT)
-                    settings = new Intent(ActivityMain.this, ActivitySettings.class);
-                else {
+                        == ServiceSinkhole.PRIVATE_DNS_WARNING_ALLOWED_DOT) {
+                    bottomNav.setSelectedItemId(R.id.nav_settings);
+                    return;
+                } else {
                     settings = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
                     if (settings.resolveActivity(getPackageManager()) == null)
                         settings = new Intent(Settings.ACTION_WIFI_SETTINGS);
@@ -711,7 +720,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
                 Math.round(16 * getResources().getDisplayMetrics().density)));
         notice.setVisibility(PreferenceManager.getDefaultSharedPreferences(this)
                 .getBoolean("log_logcat", false) ? View.VISIBLE : View.GONE);
-        notice.setOnClickListener(view -> startActivity(new Intent(this, ActivitySettings.class)));
+        notice.setOnClickListener(view -> bottomNav.setSelectedItemId(R.id.nav_settings));
     }
 
     private void updatePrivateDnsBypassBanner() {
@@ -1009,6 +1018,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences prefs, String name) {
+        super.onSharedPreferenceChanged(prefs, name);
         Log.i(TAG, "Preference " + name + "=" + prefs.getAll().get(name));
         if ("enabled".equals(name)) {
             // Get enabled
@@ -1308,9 +1318,6 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
             else
                 Toast.makeText(this, R.string.msg_unavailable, Toast.LENGTH_SHORT).show();
             return true;
-        } else if (itemId == R.id.menu_settings) {
-            startActivity(new Intent(this, ActivitySettings.class));
-            return true;
         } else if (itemId == R.id.menu_invite) {
             startActivityForResult(getIntentInvite(this), REQUEST_INVITE);
             return true;
@@ -1346,6 +1353,25 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         return intent;
     }
 
+    private void updateSettingsToolbar() {
+        boolean settings = currentTab == R.id.nav_settings;
+        if (tvTitle != null)
+            tvTitle.setText(settings ? getString(R.string.menu_settings) : mainToolbarTitle);
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        if (toolbar == null)
+            return;
+        boolean nestedSettings = settings && getSupportFragmentManager().getBackStackEntryCount() > 0;
+        if (nestedSettings) {
+            toolbar.setNavigationIcon(R.drawable.ic_arrow_back);
+            toolbar.setNavigationOnClickListener(view -> {
+                if (getSupportFragmentManager().getBackStackEntryCount() > 0)
+                    getSupportFragmentManager().popBackStack();
+            });
+        } else {
+            toolbar.setNavigationIcon(null);
+            toolbar.setNavigationOnClickListener(null);
+        }
+    }
     private void selectTab(int itemId) {
         boolean main = itemId == R.id.nav_timeline;
         boolean firewall = itemId == R.id.nav_firewall;
@@ -1364,6 +1390,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         vpnContainer.setVisibility(vpn ? View.VISIBLE : View.GONE);
         firewallContainer.setVisibility(firewall ? View.VISIBLE : View.GONE);
         settingsContainer.setVisibility(settings ? View.VISIBLE : View.GONE);
+        updateSettingsToolbar();
 
         // Search filters the Tracker list. Collapse it whenever the user leaves
         // Tracker; expanding it from another tab first switches to Tracker.

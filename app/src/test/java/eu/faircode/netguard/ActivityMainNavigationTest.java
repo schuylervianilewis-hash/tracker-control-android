@@ -1,14 +1,20 @@
 package eu.faircode.netguard;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import android.content.res.XmlResourceParser;
+import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+
+import androidx.preference.PreferenceScreen;
 
 import net.kollnig.missioncontrol.R;
 
@@ -40,6 +46,11 @@ public class ActivityMainNavigationTest {
         setField("vpnContainer", activity.findViewById(R.id.vpnContainer));
         setField("firewallContainer", activity.findViewById(R.id.firewallContainer));
         setField("settingsContainer", activity.findViewById(R.id.settingsContainer));
+
+        Method initializeSettingsHost = SettingsHostActivity.class.getDeclaredMethod("initializeSettingsHost", int.class, Bundle.class);
+        initializeSettingsHost.setAccessible(true);
+        initializeSettingsHost.invoke(activity, R.id.settingsContainer, null);
+        activity.getSupportFragmentManager().executePendingTransactions();
 
         // Avoid creating the VPN fragment in this layout-routing test. The VPN
         // destination remains the existing, lazily-created fragment in production.
@@ -108,12 +119,41 @@ public class ActivityMainNavigationTest {
         ViewGroup firewall = activity.findViewById(R.id.firewallContainer);
         assertEquals("Firewall is intentionally an empty placeholder", 0, firewall.getChildCount());
 
-        TextView settingsPlaceholder = activity.findViewById(R.id.tvSettingsTabPlaceholder);
-        assertNotNull(settingsPlaceholder);
-        assertEquals(activity.getString(R.string.settings_tab_placeholder),
-                settingsPlaceholder.getText().toString());
+        assertNull(activity.findViewById(R.id.tvSettingsTabPlaceholder));
+        FragmentSettings settings = (FragmentSettings) activity.getSupportFragmentManager().findFragmentById(R.id.settingsContainer);
+        assertNotNull(settings);
+        assertNotNull(settings.getPreferenceScreen());
     }
 
+    @Test
+    public void settingsNestedScreensUseTheSettingsContainerBackStack() throws Exception {
+        FragmentSettings settings = (FragmentSettings) activity.getSupportFragmentManager().findFragmentById(R.id.settingsContainer);
+        assertNotNull(settings);
+        PreferenceScreen advanced = (PreferenceScreen) settings.findPreference("screen_advanced_options");
+        assertNotNull(advanced);
+        assertTrue(settings.onPreferenceStartScreen(settings, advanced));
+        activity.getSupportFragmentManager().executePendingTransactions();
+        assertEquals(1, activity.getSupportFragmentManager().getBackStackEntryCount());
+        activity.getSupportFragmentManager().popBackStackImmediate();
+        assertEquals(0, activity.getSupportFragmentManager().getBackStackEntryCount());
+    }
+
+    @Test
+    public void settingsIsNotDuplicatedInTheOverflowMenu() throws Exception {
+        XmlResourceParser parser = activity.getResources().getXml(R.menu.main);
+        boolean hasSettingsEntry = false;
+        try {
+            int event;
+            while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
+                if (event != XmlPullParser.START_TAG || !"item".equals(parser.getName()))
+                    continue;
+                int id = parser.getAttributeResourceValue("http://schemas.android.com/apk/res/android", "id", 0);
+                if (id != 0 && "menu_settings".equals(activity.getResources().getResourceEntryName(id)))
+                    hasSettingsEntry = true;
+            }
+        } finally { parser.close(); }
+        assertFalse(hasSettingsEntry);
+    }
     private void assertTab(int tabId, int mainVisibility, int trackerVisibility,
                            int vpnVisibility, int firewallVisibility, int settingsVisibility)
             throws Exception {

@@ -251,16 +251,6 @@
             android:layout_height="match_parent"
             android:visibility="gone">
 
-            <TextView
-                android:id="@+id/tvSettingsTabPlaceholder"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:gravity="center"
-                android:padding="24dp"
-                android:text="@string/settings_tab_placeholder"
-                android:textAppearance="@style/TextMedium"
-                android:textColor="?attr/colorOff" />
         </FrameLayout>
 
         <View

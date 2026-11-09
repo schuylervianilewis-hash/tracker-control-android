@@ -62,8 +62,10 @@ public class FragmentSettings extends PreferenceFragmentCompat
         args.putString(PreferenceFragmentCompat.ARG_PREFERENCE_ROOT, pref.getKey());
         fragment.setArguments(args);
 
+        int containerId = requireActivity().findViewById(R.id.settingsContainer) != null
+                ? R.id.settingsContainer : R.id.settings_container;
         requireActivity().getSupportFragmentManager().beginTransaction()
-                .replace(R.id.settings_container, fragment)
+                .replace(containerId, fragment)
                 .addToBackStack(pref.getKey())
                 .commit();
         return true;
