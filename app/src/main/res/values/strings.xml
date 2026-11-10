@@ -895,4 +895,5 @@ Sincerely,\n\n]]></string>
     <string name="firewall_collapse_app">Collapse %1$s management</string>
     <string name="firewall_action_for_app">%1$s for %2$s</string>
 
+    <string name="firewall_self_app_note">Firewall service protected</string>
 </resources>

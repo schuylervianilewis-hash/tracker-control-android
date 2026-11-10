@@ -374,7 +374,8 @@ public class FirewallFragment extends Fragment {
     }
 
     private void setPolicy(Rule rule, String action) {
-        if (rule == null || !rule.internet)
+        if (rule == null || !rule.pkg || !rule.internet
+                || TextUtils.equals(rule.packageName, requireContext().getPackageName()))
             return;
         if (ACTION_VPN.equals(action) && !isRemoteVpnAvailable()) {
             Toast.makeText(requireContext(), R.string.app_route_unavailable_no_vpn,
@@ -395,7 +396,7 @@ public class FirewallFragment extends Fragment {
     }
 
     private void toggleExpanded(Rule rule) {
-        if (rule == null || !rule.internet)
+        if (rule == null || !rule.pkg || !rule.internet)
             return;
         String next = TextUtils.equals(expandedPackage, rule.packageName) ? null : rule.packageName;
         expandedPackage = next;
@@ -949,6 +950,11 @@ public class FirewallFragment extends Fragment {
                     && InternetBlocklist.getInstance(context).blockedInternet(rule.uid);
             boolean vpn = active && !blocked && remoteVpnAvailable && rule.wg_route;
             boolean bypass = active && !blocked && !vpn;
+            boolean protectedEngineApp = TextUtils.equals(rule.packageName, context.getPackageName());
+            boolean canManage = rule.pkg && rule.internet && !protectedEngineApp;
+            holder.block.setEnabled(canManage);
+            holder.vpn.setEnabled(canManage && remoteVpnAvailable);
+            holder.bypass.setEnabled(canManage);
             stylePolicyButton(holder.block, blocked);
             stylePolicyButton(holder.vpn, vpn);
             stylePolicyButton(holder.bypass, bypass);
@@ -958,14 +964,22 @@ public class FirewallFragment extends Fragment {
                             : R.string.firewall_expand_app, rule.name);
             holder.icon.setContentDescription(expandDescription);
             holder.name.setContentDescription(expandDescription);
+            holder.icon.setEnabled(rule.pkg && rule.internet);
+            holder.name.setEnabled(rule.pkg && rule.internet);
             holder.icon.setOnClickListener(view -> toggleExpanded(rule));
             holder.name.setOnClickListener(view -> toggleExpanded(rule));
-            holder.block.setContentDescription(context.getString(
-                    R.string.firewall_action_for_app, context.getString(R.string.firewall_block), rule.name));
-            holder.vpn.setContentDescription(context.getString(
-                    R.string.firewall_action_for_app, context.getString(R.string.firewall_vpn), rule.name));
-            holder.bypass.setContentDescription(context.getString(
-                    R.string.firewall_action_for_app, context.getString(R.string.firewall_bypass), rule.name));
+            holder.block.setContentDescription(protectedEngineApp
+                    ? getString(R.string.firewall_self_app_note)
+                    : context.getString(R.string.firewall_action_for_app,
+                            context.getString(R.string.firewall_block), rule.name));
+            holder.vpn.setContentDescription(!remoteVpnAvailable
+                    ? getString(R.string.app_route_unavailable_no_vpn)
+                    : context.getString(R.string.firewall_action_for_app,
+                            context.getString(R.string.firewall_vpn), rule.name));
+            holder.bypass.setContentDescription(protectedEngineApp
+                    ? getString(R.string.firewall_self_app_note)
+                    : context.getString(R.string.firewall_action_for_app,
+                            context.getString(R.string.firewall_bypass), rule.name));
             holder.header.setOnClickListener(null);
             holder.block.setOnClickListener(view -> setPolicy(rule, ACTION_BLOCK));
             holder.vpn.setOnClickListener(view -> setPolicy(rule, ACTION_VPN));
@@ -988,6 +1002,10 @@ public class FirewallFragment extends Fragment {
         }
 
         private String statusLabel(Rule rule) {
+            if (TextUtils.equals(rule.packageName, requireContext().getPackageName()))
+                return getString(R.string.firewall_self_app_note);
+            if (!rule.internet)
+                return getString(R.string.no_internet);
             if (!rule.apply)
                 return getString(R.string.firewall_excluded_status);
             if (InternetBlocklist.getInstance(requireContext()).blockedInternet(rule.uid))
