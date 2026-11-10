@@ -139,6 +139,8 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
     private AlertDialog dialogAbout = null;
     private final Handler searchHandler = new Handler(Looper.getMainLooper());
     private Runnable searchRunnable;
+    private String trackerSearchQuery = "";
+    private String firewallSearchQuery = "";
     private static final long SEARCH_DEBOUNCE_MS = 300;
 
     private static final int REQUEST_VPN = 1;
@@ -1430,6 +1432,17 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         if (firewall)
             ensureFirewallFragment();
 
+        // The toolbar SearchView is shared, but each app-list destination keeps
+        // its own query. Restore the destination's query when switching lists.
+        if ((tracker || firewall) && menuSearch != null && menuSearch.isActionViewExpanded()) {
+            SearchView searchView = (SearchView) menuSearch.getActionView();
+            String targetQuery = firewall ? firewallSearchQuery : trackerSearchQuery;
+            if (!TextUtils.equals(searchView.getQuery(), targetQuery)) {
+                searchView.setQuery(targetQuery, false);
+                filterCurrentList(targetQuery);
+            }
+        }
+
         // The original TrackerControl app list and Timeline remain intact;
         // Firewall and Settings are separate destinations with their own views.
         llAppsContent.setVisibility(tracker ? View.VISIBLE : View.GONE);
@@ -1471,12 +1484,14 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 getSupportFragmentManager().findFragmentById(R.id.firewallContainer);
         if (existing instanceof FirewallFragment) {
             firewallFragment = (FirewallFragment) existing;
+            firewallFragment.setSearchQuery(firewallSearchQuery);
             return;
         }
         if (firewallFragmentRequested)
             return;
         firewallFragmentRequested = true;
         firewallFragment = new FirewallFragment();
+        firewallFragment.setSearchQuery(firewallSearchQuery);
         getSupportFragmentManager()
                 .beginTransaction()
                 .replace(R.id.firewallContainer, firewallFragment)
@@ -1484,6 +1499,8 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
     }
 
     private void clearListSearches() {
+        trackerSearchQuery = "";
+        firewallSearchQuery = "";
         if (adapter != null)
             adapter.getFilter().filter(null);
         if (firewallFragment != null)
@@ -1492,10 +1509,13 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
 
     private void filterCurrentList(String query) {
         if (currentTab == R.id.nav_firewall) {
+            firewallSearchQuery = query == null ? "" : query;
             if (firewallFragment != null)
                 firewallFragment.setSearchQuery(query);
-        } else if (adapter != null) {
-            adapter.getFilter().filter(query);
+        } else {
+            trackerSearchQuery = query == null ? "" : query;
+            if (adapter != null)
+                adapter.getFilter().filter(query);
         }
     }
 
