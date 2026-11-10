@@ -9,50 +9,61 @@ package net.kollnig.missioncontrol.data;
 import java.util.Comparator;
 import java.util.Locale;
 
-/**
- * Pure presentation rules for the Firewall app list.
- *
- * Policy priority is always the primary key (like folders-first sorting in a
- * file manager). The user's chosen sort is only applied inside each priority.
- */
+/** Pure policy grouping and secondary sorting rules for the Firewall app list. */
 public final class FirewallPolicyLogic {
     public static final String SORT_NAME = "name";
     public static final String SORT_INSTALL_DATE = "install_date";
+    public static final String SORT_TRACKERS_WEEK = "trackers_week";
+    public static final String SORT_TRACKERS_ALL = "trackers_all";
+    public static final String SORT_TRACKERS_RECENT = "trackers_recent";
+    public static final String SORT_UID = "uid";
 
-    public static final int PRIORITY_BYPASS = 0;
+    public static final int PRIORITY_BLOCKED = 0;
     public static final int PRIORITY_VPN = 1;
-    public static final int PRIORITY_BLOCKED = 2;
+    public static final int PRIORITY_DIRECT = 2;
+    public static final int PRIORITY_EXCLUDED = 3;
 
     private FirewallPolicyLogic() {
     }
 
-    /**
-     * Resolve the visible list priority from effective policy state.
-     * An app excluded from TrackerControl is direct but is not a firewall
-     * Bypass; the UI must additionally identify that exceptional state.
-     */
+    /** Resolve priority from effective policy. Excluded apps are not Direct. */
     public static int priority(boolean apply, boolean internetBlocked, boolean tunnelled) {
         if (!apply)
-            return PRIORITY_BYPASS;
+            return PRIORITY_EXCLUDED;
         if (internetBlocked)
             return PRIORITY_BLOCKED;
-        return tunnelled ? PRIORITY_VPN : PRIORITY_BYPASS;
+        return tunnelled ? PRIORITY_VPN : PRIORITY_DIRECT;
     }
 
     public static Comparator<Entry> comparator(String sortMode) {
-        final boolean byInstallDate = SORT_INSTALL_DATE.equals(sortMode);
+        final String sort = sortMode == null ? SORT_NAME : sortMode;
         return (left, right) -> {
             int policy = Integer.compare(left.priority, right.priority);
             if (policy != 0)
                 return policy;
 
             int secondary;
-            if (byInstallDate) {
-                // Most recently installed first, like newest-first file sorting.
-                secondary = Long.compare(right.firstInstallTime, left.firstInstallTime);
-            } else {
-                secondary = left.name.toLowerCase(Locale.ROOT)
-                        .compareTo(right.name.toLowerCase(Locale.ROOT));
+            switch (sort) {
+                case SORT_INSTALL_DATE:
+                    secondary = Long.compare(right.firstInstallTime, left.firstInstallTime);
+                    break;
+                case SORT_TRACKERS_WEEK:
+                    secondary = Integer.compare(right.trackerCountWeek, left.trackerCountWeek);
+                    break;
+                case SORT_TRACKERS_ALL:
+                    secondary = Integer.compare(right.trackerCountAll, left.trackerCountAll);
+                    break;
+                case SORT_TRACKERS_RECENT:
+                    secondary = Long.compare(right.lastTrackerTime, left.lastTrackerTime);
+                    break;
+                case SORT_UID:
+                    secondary = Integer.compare(left.uid, right.uid);
+                    break;
+                case SORT_NAME:
+                default:
+                    secondary = left.name.toLowerCase(Locale.ROOT)
+                            .compareTo(right.name.toLowerCase(Locale.ROOT));
+                    break;
             }
             if (secondary != 0)
                 return secondary;
@@ -60,8 +71,20 @@ public final class FirewallPolicyLogic {
             int name = left.name.compareToIgnoreCase(right.name);
             if (name != 0)
                 return name;
-            return left.packageName.compareTo(right.packageName);
+            int packageName = left.packageName.compareTo(right.packageName);
+            if (packageName != 0)
+                return packageName;
+            return Integer.compare(left.uid, right.uid);
         };
+    }
+
+    public static boolean isSupportedSort(String sortMode) {
+        return SORT_NAME.equals(sortMode)
+                || SORT_INSTALL_DATE.equals(sortMode)
+                || SORT_TRACKERS_WEEK.equals(sortMode)
+                || SORT_TRACKERS_ALL.equals(sortMode)
+                || SORT_TRACKERS_RECENT.equals(sortMode)
+                || SORT_UID.equals(sortMode);
     }
 
     public static final class Entry {
@@ -69,12 +92,21 @@ public final class FirewallPolicyLogic {
         public final String name;
         public final String packageName;
         public final long firstInstallTime;
+        public final int uid;
+        public final int trackerCountWeek;
+        public final int trackerCountAll;
+        public final long lastTrackerTime;
 
-        public Entry(int priority, String name, String packageName, long firstInstallTime) {
+        public Entry(int priority, String name, String packageName, long firstInstallTime,
+                int uid, int trackerCountWeek, int trackerCountAll, long lastTrackerTime) {
             this.priority = priority;
             this.name = name == null ? "" : name;
             this.packageName = packageName == null ? "" : packageName;
             this.firstInstallTime = firstInstallTime;
+            this.uid = uid;
+            this.trackerCountWeek = trackerCountWeek;
+            this.trackerCountAll = trackerCountAll;
+            this.lastTrackerTime = lastTrackerTime;
         }
     }
 }
