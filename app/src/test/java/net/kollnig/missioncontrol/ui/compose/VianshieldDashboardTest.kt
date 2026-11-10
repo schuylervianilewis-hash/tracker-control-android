@@ -1,15 +1,20 @@
 package net.kollnig.missioncontrol.ui.compose
 
+import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
-import android.content.Context
+import eu.faircode.netguard.DnsChangerConfig
 import net.kollnig.missioncontrol.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,6 +31,9 @@ class VianshieldDashboardTest {
 
     private val context: Context
         get() = ApplicationProvider.getApplicationContext<Context>()
+
+    private val prefs
+        get() = PreferenceManager.getDefaultSharedPreferences(context)
 
     private var requestedProtection: Boolean? = null
     private var openedFeature: String? = null
@@ -48,6 +56,14 @@ class VianshieldDashboardTest {
         override fun onCloseFeaturePage() {
             closeRequests++
         }
+    }
+
+    @Before
+    fun clearPreferences() {
+        prefs.edit().clear().commit()
+        requestedProtection = null
+        openedFeature = null
+        closeRequests = 0
     }
 
     @Test
@@ -79,7 +95,7 @@ class VianshieldDashboardTest {
     }
 
     @Test
-    fun featureDestinationContainsOnlyTitleAndBackNavigation() {
+    fun dnsFeatureDestinationShowsFunctionalOptionsAndBackNavigation() {
         val title = context.getString(R.string.dashboard_dns_changer)
         compose.setContent {
             TrackerControlTheme {
@@ -92,8 +108,61 @@ class VianshieldDashboardTest {
 
         compose.onNodeWithTag("dashboard-feature-page").assertIsDisplayed()
         compose.onNodeWithText(title).assertIsDisplayed()
-        compose.onNodeWithTag("dashboard-feature-back").assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-automatic").assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-cloudflare").assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-google").assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-quad9").assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-wireguard").assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-custom").assertIsDisplayed()
         compose.onNodeWithTag("dashboard-feature-back").performClick()
         assertEquals(1, closeRequests)
+    }
+
+    @Test
+    fun selectingProviderPersistsMode() {
+        val title = context.getString(R.string.dashboard_dns_changer)
+        compose.setContent {
+            TrackerControlTheme {
+                TimelineScreenContent(
+                    TimelineScreenModel.initial().copy(featurePageTitle = title),
+                    callbacks
+                )
+            }
+        }
+
+        compose.onNodeWithTag("dns-mode-cloudflare").performClick()
+        assertEquals(
+            DnsChangerConfig.MODE_CLOUDFLARE,
+            prefs.getString(DnsChangerConfig.PREF_DNS_MODE, null)
+        )
+    }
+
+    @Test
+    fun customDnsRequiresValidPrimaryAndPersistsBothAddresses() {
+        val title = context.getString(R.string.dashboard_dns_changer)
+        compose.setContent {
+            TrackerControlTheme {
+                TimelineScreenContent(
+                    TimelineScreenModel.initial().copy(featurePageTitle = title),
+                    callbacks
+                )
+            }
+        }
+
+        compose.onNodeWithTag("dns-mode-custom").performClick()
+        compose.onNodeWithTag("dns-custom-save").performClick()
+        compose.onNodeWithTag("dns-custom-error").assertIsDisplayed()
+        assertFalse(prefs.contains(DnsChangerConfig.PREF_DNS_MODE))
+
+        compose.onNodeWithTag("dns-custom-primary").performTextInput("192.0.2.53")
+        compose.onNodeWithTag("dns-custom-secondary").performTextInput("192.0.2.54")
+        compose.onNodeWithTag("dns-custom-save").performClick()
+
+        assertEquals(
+            DnsChangerConfig.MODE_CUSTOM,
+            prefs.getString(DnsChangerConfig.PREF_DNS_MODE, null)
+        )
+        assertEquals("192.0.2.53", prefs.getString("dns", null))
+        assertEquals("192.0.2.54", prefs.getString("dns2", null))
     }
 }

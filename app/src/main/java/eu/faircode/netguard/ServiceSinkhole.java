@@ -1585,43 +1585,65 @@ public class ServiceSinkhole extends VpnService {
     }
 
     public static List<InetAddress> getDns(Context context) {
-        List<InetAddress> listDns = new ArrayList<>();
         List<String> sysDns = Util.getDefaultDNS(context);
-
-        // Get custom DNS servers
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
         boolean ip6 = prefs.getBoolean("ip6", true);
-        String vpnDns1 = prefs.getString("dns", null);
-        String vpnDns2 = prefs.getString("dns2", null);
-        Log.i(TAG, "DNS system=" + TextUtils.join(",", sysDns) + " config=" + vpnDns1 + "," + vpnDns2);
+        boolean explicitMode = prefs.contains(DnsChangerConfig.PREF_DNS_MODE);
+        String mode = DnsChangerConfig.getSelectedMode(prefs, false);
+
+        if (explicitMode) {
+            if (DnsChangerConfig.isProviderMode(mode)) {
+                List<InetAddress> selected =
+                        DnsChangerConfig.getProviderDns(mode, ip6, sysDns);
+                if (!selected.isEmpty()) {
+                    Log.i(TAG, "Using selected DNS mode=" + mode + " resolvers=" +
+                            TextUtils.join(",", selected));
+                    return selected;
+                }
+            } else if (DnsChangerConfig.MODE_CUSTOM.equals(mode)) {
+                List<InetAddress> selected = DnsChangerConfig.getCustomDns(prefs, ip6);
+                if (!selected.isEmpty()) {
+                    Log.i(TAG, "Using custom DNS resolvers=" + TextUtils.join(",", selected));
+                    return selected;
+                }
+            }
+
+            // Automatic and the inactive WireGuard-profile mode use the current
+            // network resolver list. Do not silently reuse stale dns/dns2 values.
+            return getNetworkDns(sysDns, ip6, null, null);
+        }
+
+        // No DNS Changer selection has been saved yet. Preserve the historical
+        // dns/dns2 + system resolver precedence for existing users.
+        return getNetworkDns(
+                sysDns,
+                ip6,
+                prefs.getString("dns", null),
+                prefs.getString("dns2", null));
+    }
+
+    private static List<InetAddress> getNetworkDns(
+            List<String> sysDns,
+            boolean ip6,
+            String vpnDns1,
+            String vpnDns2) {
+        List<InetAddress> listDns = new ArrayList<>();
 
         // First pass: IPv4 resolvers only. This reproduces the historical
-        // behaviour and is preserved exactly for IPv4 and dual-stack networks —
-        // wherever a working IPv4 resolver exists, the tun keeps advertising only
-        // IPv4 DNS, so nothing changes for the working majority.
+        // behaviour and is preserved exactly for IPv4 and dual-stack networks.
         collectDns(listDns, vpnDns1, vpnDns2, sysDns, false);
 
-        // Second pass: on IPv6-only networks (increasingly common on modern
-        // cellular / Android 13+ IPv6-only mobile data) the carrier hands out only
-        // IPv6 resolvers, so the IPv4-only pass above finds nothing. Previously we
-        // then fell through to hardcoded IPv4 public DNS (getDefaultDns), which is
-        // unreachable without a working CLAT/NAT64 path — so all resolution failed
-        // on mobile data. Accept the carrier's IPv6 resolvers instead. Gated on the
-        // "ip6" preference because the builder only routes/advertises IPv6 when it
-        // is enabled (see getConfig: the "ip6 || Inet4Address" DNS filter and the
-        // 2000::/3 route). The native tunnel already intercepts and blocks DNS over
-        // IPv6 (udp.c/dns.c are IP-version-agnostic). Issue #339 (part of #449).
+        // If the network has no IPv4 resolver, accept IPv6 resolvers only when
+        // IPv6 routing is enabled. This keeps IPv6-only mobile networks working.
         if (listDns.isEmpty() && ip6) {
             Log.i(TAG, "No IPv4 resolver available; accepting IPv6 resolvers (IPv6-only network)");
             collectDns(listDns, vpnDns1, vpnDns2, sysDns, true);
         }
 
-        // Fallback DNS servers if none found
         if (listDns.isEmpty())
             listDns.addAll(getDefaultDns(ip6));
 
         Log.i(TAG, "Get DNS=" + TextUtils.join(",", listDns));
-
         return listDns;
     }
 
@@ -1672,6 +1694,34 @@ public class ServiceSinkhole extends VpnService {
         if (dns.isLoopbackAddress() || dns.isAnyLocalAddress() || dns.isLinkLocalAddress())
             return false;
         return (dns instanceof Inet4Address) || (allowIp6 && dns instanceof Inet6Address);
+    }
+
+    /**
+     * Select the DNS advertised by the VPN while WireGuard egress is active.
+     * A missing DNS-mode preference keeps the pre-selector profile DNS
+     * behaviour. An explicit provider/custom/automatic choice overrides the
+     * profile without editing the imported WireGuard config.
+     */
+    static List<InetAddress> getWireGuardDnsForSelection(
+            Context context,
+            SharedPreferences prefs,
+            net.kollnig.missioncontrol.wg.WgConfig config) {
+        String mode = DnsChangerConfig.getSelectedMode(prefs, true);
+        if (!DnsChangerConfig.MODE_WIREGUARD.equals(mode))
+            return getDns(context);
+
+        boolean ip6 = prefs.getBoolean("ip6", true);
+        List<InetAddress> profileDns = getWireGuardDns(config);
+        List<InetAddress> usable = new ArrayList<>();
+        for (InetAddress dns : profileDns)
+            if (ip6 || dns instanceof Inet4Address)
+                usable.add(dns);
+
+        if (usable.isEmpty()) {
+            Log.w(TAG, "WG profile DNS mode has no usable DNS; using protected Quad9 public fallback DNS");
+            return getDefaultDns(ip6);
+        }
+        return usable;
     }
 
     private static List<InetAddress> getWireGuardDns(net.kollnig.missioncontrol.wg.WgConfig config) {
@@ -1875,11 +1925,8 @@ public class ServiceSinkhole extends VpnService {
                         if (wgVpn4 == null) wgVpn4 = ip;
                     }
                 }
-                dnsServers = getWireGuardDns(wgParsed);
-                if (dnsServers.isEmpty()) {
-                    Log.w(TAG, "WG config has no usable numeric DNS; using protected public fallback DNS");
-                    dnsServers = getDefaultDns(ip6);
-                }
+                dnsServers = getWireGuardDnsForSelection(
+                        ServiceSinkhole.this, prefs, wgParsed);
             } catch (Throwable ex) {
                 Log.w(TAG, "WG config parse failed for builder: " + ex.getMessage());
             }

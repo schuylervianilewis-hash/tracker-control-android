@@ -791,6 +791,21 @@ public class SettingsHostActivity extends AppCompatActivity implements SharedPre
             }
             getPreferenceScreen().findPreference(name).setTitle(
                     getString(R.string.setting_dns, prefs.getString(name, "-")));
+
+            // Editing the legacy Advanced Settings fields is an explicit custom
+            // DNS choice. If both fields are cleared, remove the mode so the
+            // engine returns to its pre-selector automatic/profile behaviour.
+            boolean hasCustomDns =
+                    !TextUtils.isEmpty(prefs.getString("dns", null)) ||
+                    !TextUtils.isEmpty(prefs.getString("dns2", null));
+            SharedPreferences.Editor dnsModeEditor = prefs.edit();
+            if (hasCustomDns)
+                dnsModeEditor.putString(
+                        DnsChangerConfig.PREF_DNS_MODE, DnsChangerConfig.MODE_CUSTOM);
+            else
+                dnsModeEditor.remove(DnsChangerConfig.PREF_DNS_MODE);
+            dnsModeEditor.apply();
+
             ServiceSinkhole.reload("changed " + name, this, false);
 
         } else if ("doh_enabled".equals(name)) {

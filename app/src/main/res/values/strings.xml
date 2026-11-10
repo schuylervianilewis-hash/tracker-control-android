@@ -904,4 +904,33 @@ Sincerely,\n\n]]></string>
     <string name="firewall_exclude_from_trackercontrol_explanation">Stops this app from passing through the TrackerControl VPN/TUN, so local firewall and tracker filtering will not apply. This is different from Direct, which keeps TrackerControl enforcement active.</string>
     <string name="firewall_paused_state_label">Temporarily paused</string>
     <string name="firewall_paused_state_explanation">TrackerControl protection is temporarily paused for this app. Resume protection to restore its previous state.</string>
+
+    <string name="dns_changer_current">Current DNS status</string>
+    <string name="dns_changer_choose">Choose a DNS provider</string>
+    <string name="dns_changer_status_doh">Secure DNS (DoH) is enabled. It takes precedence over these IP resolvers for VPN-routed DNS while WireGuard is off.</string>
+    <string name="dns_changer_status_wireguard_profile">Using DNS from the active WireGuard profile: %1$s</string>
+    <string name="dns_changer_status_wireguard_fallback">The WireGuard profile has no usable DNS address. The engine will use its Quad9 public fallback.</string>
+    <string name="dns_changer_status_wireguard_selected">WireGuard is active. The DoH proxy is paused and the selected DNS mode is used for VPN-routed DNS, subject to the profile's AllowedIPs.</string>
+    <string name="dns_changer_status_wireguard_off">WireGuard is off. Network-provided DNS is used now; profile DNS will apply when WireGuard is enabled.</string>
+    <string name="dns_changer_status_normal">The selected DNS mode is used for apps routed through the Vianshield VPN.</string>
+    <string name="dns_mode_automatic">Automatic</string>
+    <string name="dns_mode_automatic_summary">Use the DNS servers provided by your current Wi-Fi or mobile network.</string>
+    <string name="dns_mode_cloudflare">Cloudflare</string>
+    <string name="dns_mode_cloudflare_summary">Standard DNS · 1.1.1.1 and 1.0.0.1.</string>
+    <string name="dns_mode_google">Google Public DNS</string>
+    <string name="dns_mode_google_summary">Standard DNS · 8.8.8.8 and 8.8.4.4.</string>
+    <string name="dns_mode_quad9">Quad9 Secure</string>
+    <string name="dns_mode_quad9_summary">Threat-blocking DNS · 9.9.9.9 and 149.112.112.112.</string>
+    <string name="dns_mode_wireguard">WireGuard profile DNS</string>
+    <string name="dns_mode_wireguard_summary">Use the DNS addresses from the active WireGuard profile. When WireGuard is off, Automatic is used.</string>
+    <string name="dns_mode_custom">Custom DNS</string>
+    <string name="dns_mode_custom_summary">Enter your own primary DNS address and an optional secondary address.</string>
+    <string name="dns_custom_primary">Primary DNS address</string>
+    <string name="dns_custom_secondary">Secondary DNS address (optional)</string>
+    <string name="dns_custom_save">Save custom DNS</string>
+    <string name="dns_changer_saved">DNS setting saved</string>
+    <string name="dns_changer_standard_note">These provider choices use standard DNS IP addresses, not encrypted DNS. Secure DNS (DoH) remains a separate setting.</string>
+    <string name="dns_changer_direct_note">Apps configured for Direct or Bypass continue to use Android's network DNS and do not use this selection.</string>
+    <string name="dns_changer_wireguard_warning">With WireGuard, the selected resolver must be covered by the profile's AllowedIPs to travel through the WireGuard peer. The imported profile is never modified by this screen.</string>
+
 </resources>
