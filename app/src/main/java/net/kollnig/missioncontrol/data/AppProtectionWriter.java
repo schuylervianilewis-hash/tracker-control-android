@@ -32,6 +32,8 @@ public final class AppProtectionWriter {
         if (change == null)
             return;
         Context appContext = context.getApplicationContext();
+        InternetPermissionPolicy.recordManualDecision(appContext, packageName, uid,
+                change.internetBlocked);
         PausedApps.cancel(appContext, packageName, uid);
         apply(appContext, packageName, uid, change);
     }
@@ -62,6 +64,8 @@ public final class AppProtectionWriter {
             if (item == null || item.packageName == null || item.change == null)
                 continue;
 
+            InternetPermissionPolicy.recordManualDecision(appContext, item.packageName,
+                    item.uid, item.change.internetBlocked);
             if (PausedApps.isPaused(appContext, item.packageName))
                 PausedApps.cancel(appContext, item.packageName, item.uid);
 
@@ -123,6 +127,8 @@ public final class AppProtectionWriter {
         if (change == null)
             return;
         Context appContext = context.getApplicationContext();
+        InternetPermissionPolicy.recordManualDecision(appContext, packageName, uid,
+                change.internetBlocked);
         PausedApps.cancel(appContext, packageName, uid);
         apply(appContext, packageName, uid, change, true);
     }

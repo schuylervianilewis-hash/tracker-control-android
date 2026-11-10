@@ -90,6 +90,7 @@ import net.kollnig.missioncontrol.R;
 import net.kollnig.missioncontrol.TimelineFragment;
 import net.kollnig.missioncontrol.details.FirewallFragment;
 import net.kollnig.missioncontrol.data.FirewallPolicyLogic;
+import net.kollnig.missioncontrol.data.InternetPermissionPolicy;
 import net.kollnig.missioncontrol.data.Tracker;
 import net.kollnig.missioncontrol.data.TrackerList;
 import net.kollnig.missioncontrol.vpn.VpnFragment;
@@ -601,6 +602,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
         intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
         intentFilter.addDataScheme("package");
         ContextCompat.registerReceiver(this, packageChangedReceiver, intentFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
 
@@ -1150,6 +1152,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         public void onReceive(Context context, Intent intent) {
             Log.i(TAG, "Received " + intent);
             Util.logExtras(intent);
+            Rule.clearCache(ActivityMain.this);
             updateApplicationList(null);
         }
     };
@@ -1241,96 +1244,81 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-
-        // Tracker keeps its original filters/sorts. Firewall has independent
-        // name/install-date sorting and uses the same toolbar SearchView.
         MenuItem filterItem = menu.findItem(R.id.menu_filter);
         MenuItem sortItem = menu.findItem(R.id.menu_sort);
         boolean showingApps = currentTab == R.id.nav_apps;
         boolean showingFirewall = currentTab == R.id.nav_firewall;
-        if (filterItem != null) filterItem.setVisible(showingApps);
+        if (filterItem != null) filterItem.setVisible(showingApps || showingFirewall);
         if (sortItem != null) sortItem.setVisible(showingApps || showingFirewall);
-        MenuItem installDateSort = menu.findItem(R.id.menu_sort_install_date);
-        if (installDateSort != null)
-            installDateSort.setVisible(showingFirewall);
-        menu.findItem(R.id.menu_sort_trackers_week).setVisible(showingApps);
-        menu.findItem(R.id.menu_sort_trackers_all).setVisible(showingApps);
-        menu.findItem(R.id.menu_sort_by_latest_detected_tracker).setVisible(showingApps);
-        menu.findItem(R.id.menu_sort_uid).setVisible(showingApps);
-        if (showingFirewall) {
-            boolean byDate = firewallFragment != null
-                    && FirewallPolicyLogic.SORT_INSTALL_DATE.equals(firewallFragment.getSortMode());
-            menu.findItem(R.id.menu_sort_name).setChecked(!byDate);
-            if (installDateSort != null)
-                installDateSort.setChecked(byDate);
-            return super.onPrepareOptionsMenu(menu);
-        }
-        if (!showingApps)
-            return super.onPrepareOptionsMenu(menu);
 
-        Menu submenu = menu.findItem(R.id.menu_filter).getSubMenu();
-        if (prefs.getBoolean("manage_system", false)) {
-            menu.findItem(R.id.menu_app_user).setChecked(prefs.getBoolean("show_user", true));
-            menu.findItem(R.id.menu_app_system).setChecked(prefs.getBoolean("show_system", false));
-        } else {
-            submenu.removeItem(R.id.menu_app_user);
-            submenu.removeItem(R.id.menu_app_system);
+        boolean showSystemFilters = prefs.getBoolean("manage_system", false);
+        MenuItem userFilter = menu.findItem(R.id.menu_app_user);
+        MenuItem systemFilter = menu.findItem(R.id.menu_app_system);
+        if (userFilter != null) userFilter.setVisible(showSystemFilters);
+        if (systemFilter != null) systemFilter.setVisible(showSystemFilters);
+
+        String[] filterKeys = { "show_user", "show_system", "show_nointernet",
+                "show_unprotected", "show_frozen" };
+        int[] filterIds = { R.id.menu_app_user, R.id.menu_app_system, R.id.menu_app_nointernet,
+                R.id.menu_app_unprotected, R.id.menu_app_frozen };
+        for (int i = 0; i < filterIds.length; i++) {
+            MenuItem filter = menu.findItem(filterIds[i]);
+            if (filter == null) continue;
+            boolean defaultValue = "show_user".equals(filterKeys[i])
+                    || "show_nointernet".equals(filterKeys[i]);
+            boolean checked = showingFirewall && firewallFragment != null
+                    ? firewallFragment.isFilterEnabled(filterKeys[i])
+                    : prefs.getBoolean(filterKeys[i], defaultValue);
+            filter.setChecked(checked);
         }
 
-        menu.findItem(R.id.menu_app_nointernet).setChecked(prefs.getBoolean("show_nointernet", true));
-        menu.findItem(R.id.menu_app_unprotected).setChecked(prefs.getBoolean("show_unprotected", false));
-        menu.findItem(R.id.menu_app_frozen).setChecked(prefs.getBoolean("show_frozen", false));
-
-        String sort = prefs.getString("sort", "trackers_week");
-        if ("uid".equals(sort))
-            menu.findItem(R.id.menu_sort_uid).setChecked(true);
-        else if ("name".equals(sort))
-            menu.findItem(R.id.menu_sort_name).setChecked(true);
-        else if ("trackers_all".equals(sort))
-            menu.findItem(R.id.menu_sort_trackers_all).setChecked(true);
-        else if ("trackers_recent".equals(sort))
-            menu.findItem(R.id.menu_sort_by_latest_detected_tracker).setChecked(true);
-        else
-            menu.findItem(R.id.menu_sort_trackers_week).setChecked(true);
-
+        int[] sortIds = { R.id.menu_sort_name, R.id.menu_sort_install_date,
+                R.id.menu_sort_trackers_week, R.id.menu_sort_trackers_all,
+                R.id.menu_sort_by_latest_detected_tracker, R.id.menu_sort_uid };
+        String[] firewallSorts = { FirewallPolicyLogic.SORT_NAME,
+                FirewallPolicyLogic.SORT_INSTALL_DATE, FirewallPolicyLogic.SORT_TRACKERS_WEEK,
+                FirewallPolicyLogic.SORT_TRACKERS_ALL, FirewallPolicyLogic.SORT_TRACKERS_RECENT,
+                FirewallPolicyLogic.SORT_UID };
+        boolean[] visible = { true, showingFirewall, true, true, true, true };
+        String selectedFirewallSort = showingFirewall && firewallFragment != null
+                ? firewallFragment.getSortMode() : FirewallPolicyLogic.SORT_NAME;
+        String trackerSort = prefs.getString("sort", "trackers_week");
+        for (int i = 0; i < sortIds.length; i++) {
+            MenuItem sort = menu.findItem(sortIds[i]);
+            if (sort == null) continue;
+            sort.setVisible(visible[i] && (showingApps || showingFirewall));
+            boolean checked = showingFirewall ? selectedFirewallSort.equals(firewallSorts[i])
+                    : ("name".equals(trackerSort) && i == 0)
+                    || ("trackers_week".equals(trackerSort) && i == 2)
+                    || ("trackers_all".equals(trackerSort) && i == 3)
+                    || ("trackers_recent".equals(trackerSort) && i == 4)
+                    || ("uid".equals(trackerSort) && i == 5);
+            sort.setChecked(checked);
+        }
         return super.onPrepareOptionsMenu(menu);
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         Log.i(TAG, "Menu=" + item.getTitle());
-
-        // Handle item selection
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         int itemId = item.getItemId();
-        if (itemId == R.id.menu_app_user) {
-            item.setChecked(!item.isChecked());
-            prefs.edit().putBoolean("show_user", item.isChecked()).apply();
-            return true;
-        } else if (itemId == R.id.menu_app_system) {
-            item.setChecked(!item.isChecked());
-            prefs.edit().putBoolean("show_system", item.isChecked()).apply();
-            return true;
-        } else if (itemId == R.id.menu_app_nointernet) {
-            item.setChecked(!item.isChecked());
-            prefs.edit().putBoolean("show_nointernet", item.isChecked()).apply();
-            return true;
-        } else if (itemId == R.id.menu_app_unprotected) {
-            item.setChecked(!item.isChecked());
-            prefs.edit().putBoolean("show_unprotected", item.isChecked()).apply();
-            return true;
-        } else if (itemId == R.id.menu_app_frozen) {
-            item.setChecked(!item.isChecked());
-            prefs.edit().putBoolean("show_frozen", item.isChecked()).apply();
-            return true;
-        } else if (itemId == R.id.menu_sort_name) {
+        if (itemId == R.id.menu_app_user)
+            return toggleAppFilter(item, "show_user", prefs);
+        else if (itemId == R.id.menu_app_system)
+            return toggleAppFilter(item, "show_system", prefs);
+        else if (itemId == R.id.menu_app_nointernet)
+            return toggleAppFilter(item, "show_nointernet", prefs);
+        else if (itemId == R.id.menu_app_unprotected)
+            return toggleAppFilter(item, "show_unprotected", prefs);
+        else if (itemId == R.id.menu_app_frozen)
+            return toggleAppFilter(item, "show_frozen", prefs);
+        else if (itemId == R.id.menu_sort_name) {
             item.setChecked(true);
             if (currentTab == R.id.nav_firewall) {
                 if (firewallFragment != null)
                     firewallFragment.setSortMode(FirewallPolicyLogic.SORT_NAME);
-            } else {
-                prefs.edit().putString("sort", "name").apply();
-            }
+            } else prefs.edit().putString("sort", "name").apply();
             return true;
         } else if (itemId == R.id.menu_sort_install_date) {
             if (currentTab == R.id.nav_firewall && firewallFragment != null) {
@@ -1340,20 +1328,16 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
             return true;
         } else if (itemId == R.id.menu_sort_trackers_week) {
             item.setChecked(true);
-            prefs.edit().putString("sort", "trackers_week").apply();
-            return true;
+            return setTrackerOrFirewallSort(prefs, FirewallPolicyLogic.SORT_TRACKERS_WEEK);
         } else if (itemId == R.id.menu_sort_trackers_all) {
             item.setChecked(true);
-            prefs.edit().putString("sort", "trackers_all").apply();
-            return true;
+            return setTrackerOrFirewallSort(prefs, FirewallPolicyLogic.SORT_TRACKERS_ALL);
         } else if (itemId == R.id.menu_sort_by_latest_detected_tracker) {
             item.setChecked(true);
-            prefs.edit().putString("sort", "trackers_recent").apply();
-            return true;
+            return setTrackerOrFirewallSort(prefs, FirewallPolicyLogic.SORT_TRACKERS_RECENT);
         } else if (itemId == R.id.menu_sort_uid) {
             item.setChecked(true);
-            prefs.edit().putString("sort", "uid").apply();
-            return true;
+            return setTrackerOrFirewallSort(prefs, FirewallPolicyLogic.SORT_UID);
         } else if (itemId == R.id.menu_log) {
             if (Util.canFilter(this))
                 startActivity(new Intent(this, ActivityLog.class));
@@ -1383,6 +1367,28 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private boolean toggleAppFilter(MenuItem item, String key, SharedPreferences prefs) {
+        boolean checked = !item.isChecked();
+        item.setChecked(checked);
+        if (currentTab == R.id.nav_firewall) {
+            if (firewallFragment != null)
+                firewallFragment.setFilter(key, checked);
+        } else {
+            prefs.edit().putBoolean(key, checked).apply();
+        }
+        return true;
+    }
+
+    private boolean setTrackerOrFirewallSort(SharedPreferences prefs, String mode) {
+        if (currentTab == R.id.nav_firewall) {
+            if (firewallFragment != null)
+                firewallFragment.setSortMode(mode);
+        } else {
+            prefs.edit().putString("sort", mode).apply();
+        }
+        return true;
     }
 
     private Intent getIntentCreateExport() {
@@ -1602,6 +1608,9 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
 
             @Override
             protected List<Rule> doInBackground(Object... arg) {
+                if (InternetPermissionPolicy.reconcile(ActivityMain.this))
+                    ServiceSinkhole.reload("automatic Internet-permission policy",
+                            ActivityMain.this, false);
                 return Rule.getRules(false, true, ActivityMain.this);
             }
 

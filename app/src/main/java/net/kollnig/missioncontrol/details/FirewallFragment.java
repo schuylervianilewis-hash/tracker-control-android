@@ -40,6 +40,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.color.MaterialColors;
 
@@ -64,6 +65,7 @@ import net.kollnig.missioncontrol.data.AppProtectionWriter;
 import net.kollnig.missioncontrol.data.BlockingMode;
 import net.kollnig.missioncontrol.data.FirewallPolicyLogic;
 import net.kollnig.missioncontrol.data.InternetBlocklist;
+import net.kollnig.missioncontrol.data.InternetPermissionPolicy;
 import net.kollnig.missioncontrol.data.PausedApps;
 import net.kollnig.missioncontrol.data.RemoteRoutingLogic;
 import net.kollnig.missioncontrol.data.Tracker;
@@ -89,15 +91,14 @@ import net.kollnig.missioncontrol.ui.compose.StateOption;
  */
 public class FirewallFragment extends Fragment {
     private static final String PREF_SORT = "firewall_sort";
+    private static final String FILTER_PREFIX = "firewall_";
     private static final String ACTION_BLOCK = "block";
     private static final String ACTION_VPN = "vpn";
-    private static final String ACTION_BYPASS = "bypass";
+    private static final String ACTION_DIRECT = "direct";
 
     private final Handler expiryHandler = new Handler(Looper.getMainLooper());
     private final Runnable expiryRunnable = this::onPauseExpired;
     private final List<Rule> allRules = new ArrayList<>();
-    @Nullable private List<Rule> searchPool;
-    private boolean loadingSearchPool;
     private final List<TrackerCategory> blockedTrackerCategories = new ArrayList<>();
 
     private SwipeRefreshLayout swipeRefresh;
@@ -135,7 +136,7 @@ public class FirewallFragment extends Fragment {
                 new LinearLayout.LayoutParams(0, dp(44), 1f));
         actions.addView(globalButton(context, R.string.firewall_vpn_all, ACTION_VPN),
                 new LinearLayout.LayoutParams(0, dp(44), 1f));
-        actions.addView(globalButton(context, R.string.firewall_bypass_all, ACTION_BYPASS),
+        actions.addView(globalButton(context, R.string.firewall_bypass_all, ACTION_DIRECT),
                 new LinearLayout.LayoutParams(0, dp(44), 1f));
         root.addView(actions, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -192,7 +193,7 @@ public class FirewallFragment extends Fragment {
     }
 
     public void setSortMode(String value) {
-        if (!FirewallPolicyLogic.SORT_INSTALL_DATE.equals(value))
+        if (!FirewallPolicyLogic.isSupportedSort(value))
             value = FirewallPolicyLogic.SORT_NAME;
         sortMode = value;
         PreferenceManager.getDefaultSharedPreferences(requireContext()).edit()
@@ -200,10 +201,31 @@ public class FirewallFragment extends Fragment {
         applyFilterAndSort();
     }
 
+    public boolean isFilterEnabled(String key) {
+        return PreferenceManager.getDefaultSharedPreferences(requireContext())
+                .getBoolean(FILTER_PREFIX + key, defaultFilterValue(key));
+    }
+
+    public void setFilter(String key, boolean enabled) {
+        if (!isSupportedFilter(key))
+            return;
+        PreferenceManager.getDefaultSharedPreferences(requireContext()).edit()
+                .putBoolean(FILTER_PREFIX + key, enabled).apply();
+        applyFilterAndSort();
+    }
+
+    private static boolean isSupportedFilter(String key) {
+        return "show_user".equals(key) || "show_system".equals(key)
+                || "show_nointernet".equals(key) || "show_unprotected".equals(key)
+                || "show_frozen".equals(key);
+    }
+
+    private static boolean defaultFilterValue(String key) {
+        return "show_user".equals(key) || "show_nointernet".equals(key);
+    }
+
     public void setSearchQuery(String query) {
         searchQuery = query == null ? "" : query.trim();
-        if (!TextUtils.isEmpty(searchQuery) && searchPool == null)
-            loadSearchPool();
         applyFilterAndSort();
     }
 
@@ -217,7 +239,9 @@ public class FirewallFragment extends Fragment {
         if (activity == null)
             return;
         AsyncTask.execute(() -> {
-            List<Rule> result = Rule.getRules(false, true, context);
+            if (InternetPermissionPolicy.reconcile(context))
+                ServiceSinkhole.reload("automatic Internet-permission policy", context, false);
+            List<Rule> result = Rule.getRules(true, true, context);
             boolean routeAvailable = isRemoteVpnAvailable(context);
             activity.runOnUiThread(() -> {
                 if (destroyed || !isAdded() || adapter == null)
@@ -225,10 +249,7 @@ public class FirewallFragment extends Fragment {
                 allRules.clear();
                 if (result != null)
                     allRules.addAll(result);
-                searchPool = null;
                 remoteVpnAvailable = routeAvailable;
-                if (!TextUtils.isEmpty(searchQuery))
-                    loadSearchPool();
                 applyFilterAndSort();
                 if (swipeRefresh != null)
                     swipeRefresh.setRefreshing(false);
@@ -239,64 +260,50 @@ public class FirewallFragment extends Fragment {
     private void applyFilterAndSort() {
         if (adapter == null || !isAdded())
             return;
-        List<Rule> source = new ArrayList<>(allRules);
-        if (!TextUtils.isEmpty(searchQuery) && searchPool != null) {
-            Map<String, Rule> byPackage = new HashMap<>();
-            for (Rule rule : source)
-                byPackage.put(rule.packageName, rule);
-            for (Rule stub : searchPool)
-                byPackage.putIfAbsent(stub.packageName, stub);
-            source = new ArrayList<>(byPackage.values());
-        }
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+        boolean showUser = prefs.getBoolean(FILTER_PREFIX + "show_user", true);
+        boolean showSystem = prefs.getBoolean(FILTER_PREFIX + "show_system", false);
+        boolean showNoInternet = prefs.getBoolean(FILTER_PREFIX + "show_nointernet", true);
+        boolean showUnprotected = prefs.getBoolean(FILTER_PREFIX + "show_unprotected", false);
+        boolean showFrozen = prefs.getBoolean(FILTER_PREFIX + "show_frozen", false);
 
         final String query = searchQuery.toLowerCase(Locale.ROOT);
         List<Rule> filtered = new ArrayList<>();
-        for (Rule rule : source) {
-            if (TextUtils.isEmpty(query)
-                    || rule.name.toLowerCase(Locale.ROOT).contains(query)
-                    || rule.packageName.toLowerCase(Locale.ROOT).contains(query))
-                filtered.add(rule);
+        for (Rule rule : allRules) {
+            if (!rule.pkg)
+                continue;
+            if (rule.system ? !showSystem : !showUser)
+                continue;
+            if (!showNoInternet && !rule.internet)
+                continue;
+            if (!showFrozen && !rule.enabled)
+                continue;
+            boolean unprotected = !rule.apply || !rule.tracker_protect;
+            if (showUnprotected && !unprotected)
+                continue;
+            if (!TextUtils.isEmpty(query)
+                    && !rule.name.toLowerCase(Locale.ROOT).contains(query)
+                    && !rule.packageName.toLowerCase(Locale.ROOT).contains(query))
+                continue;
+            filtered.add(rule);
         }
 
         final InternetBlocklist internet = InternetBlocklist.getInstance(requireContext());
-        final boolean vpnAvailable = remoteVpnAvailable;
-        final String selectedSort = sortMode;
-        final Comparator<FirewallPolicyLogic.Entry> entryComparator =
-                FirewallPolicyLogic.comparator(selectedSort);
-        final Map<String, FirewallPolicyLogic.Entry> sortEntries = new HashMap<>();
+        final Comparator<FirewallPolicyLogic.Entry> comparator =
+                FirewallPolicyLogic.comparator(sortMode);
+        final Map<String, FirewallPolicyLogic.Entry> entries = new HashMap<>();
         for (Rule rule : filtered) {
             int priority = FirewallPolicyLogic.priority(
                     rule.apply, internet.blockedInternet(rule.uid),
-                    vpnAvailable && rule.wg_route);
-            sortEntries.put(rule.packageName, new FirewallPolicyLogic.Entry(
-                    priority, rule.name, rule.packageName, rule.firstInstallTime));
+                    remoteVpnAvailable && rule.wg_route);
+            entries.put(rule.packageName, new FirewallPolicyLogic.Entry(
+                    priority, rule.name, rule.packageName, rule.firstInstallTime,
+                    rule.uid, rule.getTrackerCount(true), rule.getTrackerCount(false),
+                    rule.getLastTrackerTime()));
         }
-        Collections.sort(filtered, (left, right) -> {
-            return entryComparator.compare(sortEntries.get(left.packageName),
-                    sortEntries.get(right.packageName));
-        });
+        Collections.sort(filtered, (left, right) ->
+                comparator.compare(entries.get(left.packageName), entries.get(right.packageName)));
         adapter.setItems(filtered);
-    }
-
-    /** Build the all-installed-app search pool off the main thread, like Tracker's adapter. */
-    private void loadSearchPool() {
-        if (loadingSearchPool || searchPool != null || !isAdded())
-            return;
-        androidx.fragment.app.FragmentActivity activity = getActivity();
-        if (activity == null)
-            return;
-        loadingSearchPool = true;
-        Context context = requireContext().getApplicationContext();
-        AsyncTask.execute(() -> {
-            List<Rule> result = Rule.getSearchStubs(context);
-            activity.runOnUiThread(() -> {
-                loadingSearchPool = false;
-                if (!isAdded() || destroyed)
-                    return;
-                searchPool = result == null ? Collections.emptyList() : result;
-                applyFilterAndSort();
-            });
-        });
     }
 
     private MaterialButton globalButton(Context context, int title, String action) {
@@ -353,7 +360,7 @@ public class FirewallFragment extends Fragment {
         for (Rule rule : targets) {
             if (ACTION_VPN.equals(action))
                 routeEditor.putBoolean(rule.packageName, true);
-            else if (ACTION_BYPASS.equals(action))
+            else if (ACTION_DIRECT.equals(action))
                 routeEditor.putBoolean(rule.packageName, false);
             changes.add(new AppProtectionWriter.PackageChange(rule.packageName, rule.uid, change));
         }
@@ -380,7 +387,7 @@ public class FirewallFragment extends Fragment {
             return;
         }
 
-        if (ACTION_VPN.equals(action) || ACTION_BYPASS.equals(action)) {
+        if (ACTION_VPN.equals(action) || ACTION_DIRECT.equals(action)) {
             requireContext().getSharedPreferences(Rule.PREF_WG_ROUTE, Context.MODE_PRIVATE)
                     .edit().putBoolean(rule.packageName, ACTION_VPN.equals(action)).apply();
             AppProtectionWriter.applyManualAndReload(requireContext(), rule.packageName, rule.uid,
@@ -908,12 +915,12 @@ public class FirewallFragment extends Fragment {
             buttons.setOrientation(LinearLayout.HORIZONTAL);
             header.addView(buttons, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            MaterialButton block = rowButton(context, R.string.firewall_block);
-            MaterialButton vpn = rowButton(context, R.string.firewall_vpn);
-            MaterialButton bypass = rowButton(context, R.string.firewall_bypass);
-            buttons.addView(block, new LinearLayout.LayoutParams(dp(58), dp(38)));
-            buttons.addView(vpn, new LinearLayout.LayoutParams(dp(54), dp(38)));
-            buttons.addView(bypass, new LinearLayout.LayoutParams(dp(66), dp(38)));
+            MaterialCheckBox block = rowChoice(context, R.string.firewall_block);
+            MaterialCheckBox vpn = rowChoice(context, R.string.firewall_vpn);
+            MaterialCheckBox direct = rowChoice(context, R.string.firewall_direct);
+            buttons.addView(block, new LinearLayout.LayoutParams(dp(60), dp(48)));
+            buttons.addView(vpn, new LinearLayout.LayoutParams(dp(54), dp(48)));
+            buttons.addView(direct, new LinearLayout.LayoutParams(dp(64), dp(48)));
 
             LinearLayout expanded = new LinearLayout(context);
             expanded.setOrientation(LinearLayout.VERTICAL);
@@ -922,7 +929,7 @@ public class FirewallFragment extends Fragment {
             root.addView(expanded, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             return new FirewallViewHolder(root, header, icon, name, status,
-                    block, vpn, bypass, expanded);
+                    block, vpn, direct, expanded);
         }
 
         @Override
@@ -949,15 +956,15 @@ public class FirewallFragment extends Fragment {
             boolean blocked = active
                     && InternetBlocklist.getInstance(context).blockedInternet(rule.uid);
             boolean vpn = active && !blocked && remoteVpnAvailable && rule.wg_route;
-            boolean bypass = active && !blocked && !vpn;
+            boolean direct = active && !blocked && !vpn;
             boolean protectedEngineApp = TextUtils.equals(rule.packageName, context.getPackageName());
-            boolean canManage = rule.pkg && rule.internet && !protectedEngineApp;
+            boolean canManage = rule.pkg && !protectedEngineApp;
             holder.block.setEnabled(canManage);
             holder.vpn.setEnabled(canManage && remoteVpnAvailable);
-            holder.bypass.setEnabled(canManage);
-            stylePolicyButton(holder.block, blocked);
-            stylePolicyButton(holder.vpn, vpn);
-            stylePolicyButton(holder.bypass, bypass);
+            holder.direct.setEnabled(canManage);
+            setQuickChoice(holder.block, blocked);
+            setQuickChoice(holder.vpn, vpn);
+            setQuickChoice(holder.direct, direct);
 
             String expandDescription = context.getString(
                     isExpanded(rule) ? R.string.firewall_collapse_app
@@ -977,14 +984,23 @@ public class FirewallFragment extends Fragment {
                     : !remoteVpnAvailable ? getString(R.string.app_route_unavailable_no_vpn)
                     : context.getString(R.string.firewall_action_for_app,
                             context.getString(R.string.firewall_vpn), rule.name));
-            holder.bypass.setContentDescription(protectedEngineApp
+            holder.direct.setContentDescription(protectedEngineApp
                     ? getString(R.string.firewall_self_app_note)
                     : context.getString(R.string.firewall_action_for_app,
-                            context.getString(R.string.firewall_bypass), rule.name));
+                            context.getString(R.string.firewall_direct), rule.name));
             holder.header.setOnClickListener(null);
-            holder.block.setOnClickListener(view -> setPolicy(rule, ACTION_BLOCK));
-            holder.vpn.setOnClickListener(view -> setPolicy(rule, ACTION_VPN));
-            holder.bypass.setOnClickListener(view -> setPolicy(rule, ACTION_BYPASS));
+            holder.block.setOnClickListener(view -> {
+                if (!holder.block.isChecked()) holder.block.setChecked(true);
+                setPolicy(rule, ACTION_BLOCK);
+            });
+            holder.vpn.setOnClickListener(view -> {
+                if (!holder.vpn.isChecked()) holder.vpn.setChecked(true);
+                setPolicy(rule, ACTION_VPN);
+            });
+            holder.direct.setOnClickListener(view -> {
+                if (!holder.direct.isChecked()) holder.direct.setChecked(true);
+                setPolicy(rule, ACTION_DIRECT);
+            });
 
             holder.expanded.removeAllViews();
             boolean expanded = isExpanded(rule);
@@ -992,7 +1008,7 @@ public class FirewallFragment extends Fragment {
             if (expanded) {
                 ComposeView composeView = new ComposeView(context);
                 holder.expanded.addView(composeView, new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, dp(520)));
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                 installProtectionPanel(composeView, rule);
             }
         }
@@ -1005,39 +1021,32 @@ public class FirewallFragment extends Fragment {
         private String statusLabel(Rule rule) {
             if (TextUtils.equals(rule.packageName, requireContext().getPackageName()))
                 return getString(R.string.firewall_self_app_note);
-            if (!rule.internet)
-                return getString(R.string.no_internet);
             if (!rule.apply)
                 return getString(R.string.firewall_excluded_status);
             if (InternetBlocklist.getInstance(requireContext()).blockedInternet(rule.uid))
                 return getString(R.string.firewall_block);
+            if (!rule.internet)
+                return getString(R.string.no_internet);
             return remoteVpnAvailable && rule.wg_route
                     ? getString(R.string.firewall_vpn)
-                    : getString(R.string.firewall_bypass);
+                    : getString(R.string.firewall_direct);
         }
 
-        private MaterialButton rowButton(Context context, int label) {
-            MaterialButton button = new MaterialButton(context);
-            button.setText(label);
-            button.setTextSize(9);
-            button.setAllCaps(false);
-            button.setInsetTop(0);
-            button.setInsetBottom(0);
-            button.setCornerRadius(dp(8));
-            button.setMinWidth(0);
-            button.setMinimumWidth(0);
-            button.setPadding(dp(2), 0, dp(2), 0);
-            return button;
+        private MaterialCheckBox rowChoice(Context context, int label) {
+            MaterialCheckBox choice = new MaterialCheckBox(context);
+            choice.setText(label);
+            choice.setTextSize(11);
+            choice.setMinWidth(0);
+            choice.setMinimumWidth(0);
+            choice.setMinHeight(dp(48));
+            choice.setPadding(dp(1), 0, dp(1), 0);
+            choice.setUseMaterialThemeColors(true);
+            return choice;
         }
 
-        private void stylePolicyButton(MaterialButton button, boolean selected) {
-            int primary = ContextCompat.getColor(button.getContext(), R.color.colorPrimary);
-            int surface = ContextCompat.getColor(button.getContext(), R.color.vian_surface_variant);
-            int onSurface = ContextCompat.getColor(button.getContext(), R.color.vian_text_primary);
-            button.setSelected(selected);
-            button.setBackgroundTintList(ColorStateList.valueOf(selected ? primary : surface));
-            button.setTextColor(selected ? Color.WHITE : onSurface);
-            button.setStrokeWidth(selected ? 0 : dp(1));
+        private void setQuickChoice(MaterialCheckBox choice, boolean selected) {
+            choice.setOnCheckedChangeListener(null);
+            choice.setChecked(selected);
         }
     }
 
@@ -1046,14 +1055,14 @@ public class FirewallFragment extends Fragment {
         final ImageView icon;
         final TextView name;
         final TextView status;
-        final MaterialButton block;
-        final MaterialButton vpn;
-        final MaterialButton bypass;
+        final MaterialCheckBox block;
+        final MaterialCheckBox vpn;
+        final MaterialCheckBox direct;
         final LinearLayout expanded;
 
         FirewallViewHolder(View itemView, LinearLayout header, ImageView icon,
-                TextView name, TextView status, MaterialButton block, MaterialButton vpn,
-                MaterialButton bypass, LinearLayout expanded) {
+                TextView name, TextView status, MaterialCheckBox block, MaterialCheckBox vpn,
+                MaterialCheckBox direct, LinearLayout expanded) {
             super(itemView);
             this.header = header;
             this.icon = icon;
@@ -1061,7 +1070,7 @@ public class FirewallFragment extends Fragment {
             this.status = status;
             this.block = block;
             this.vpn = vpn;
-            this.bypass = bypass;
+            this.direct = direct;
             this.expanded = expanded;
         }
     }

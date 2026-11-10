@@ -151,7 +151,7 @@ object ProtectionScreen {
         callbacks: ProtectionScreenCallbacks
     ): ProtectionScreenController = installContent(
         composeView, initialModel, callbacks,
-        ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed, null, false
+        ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed, null, false, false
     )
 
     /** Inline RecyclerView rows must dispose their composition when recycled. */
@@ -163,7 +163,7 @@ object ProtectionScreen {
         footerNote: String
     ): ProtectionScreenController = installContent(
         composeView, initialModel, callbacks,
-        ViewCompositionStrategy.DisposeOnDetachedFromWindow, footerNote, true
+        ViewCompositionStrategy.DisposeOnDetachedFromWindow, footerNote, true, true
     )
 
     private fun installContent(
@@ -172,13 +172,15 @@ object ProtectionScreen {
         callbacks: ProtectionScreenCallbacks,
         strategy: ViewCompositionStrategy,
         footerNote: String?,
-        showFirewallPlaceholders: Boolean
+        showFirewallPlaceholders: Boolean,
+        inlineLayout: Boolean
     ): ProtectionScreenController {
         val state = mutableStateOf(initialModel)
         composeView.setViewCompositionStrategy(strategy)
         composeView.setContent {
             TrackerControlTheme {
-                ProtectionScreenContent(state.value, callbacks, footerNote, showFirewallPlaceholders)
+                ProtectionScreenContent(state.value, callbacks, footerNote,
+                    showFirewallPlaceholders, inlineLayout)
             }
         }
         return ProtectionScreenController(state)
@@ -190,8 +192,13 @@ fun ProtectionScreenContent(
     model: ProtectionScreenModel,
     callbacks: ProtectionScreenCallbacks,
     footerNote: String? = null,
-    showFirewallPlaceholders: Boolean = false
+    showFirewallPlaceholders: Boolean = false,
+    inlineLayout: Boolean = false
 ) {
+    if (inlineLayout) {
+        ProtectionScreenInlineContent(model, callbacks, footerNote, showFirewallPlaceholders)
+        return
+    }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -308,6 +315,79 @@ fun ProtectionScreenContent(
         footerNote?.let { note ->
             item(key = "protection-footer-note") { EmptyMessage(note) }
         }
+    }
+}
+
+@Composable
+private fun ProtectionScreenInlineContent(
+    model: ProtectionScreenModel,
+    callbacks: ProtectionScreenCallbacks,
+    footerNote: String?,
+    showFirewallPlaceholders: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        model.pause?.let { PauseContent(it, callbacks::onPauseResume) }
+        DetailsSectionHeading(
+            text = androidx.compose.ui.res.stringResource(R.string.protection_blocked_last_24h)
+        )
+        when {
+            !model.blocked.available -> model.blocked.message?.let { EmptyMessage(it) }
+            model.blocked.categories.isEmpty() -> model.blocked.message?.let { EmptyMessage(it) }
+            else -> model.blocked.categories.forEach { category ->
+                CategoryRow(category) { checked -> callbacks.onCategoryToggle(category.key, checked) }
+                category.companies.forEachIndexed { index, company ->
+                    CompanyRow(company, callbacks::onCompanyClick)
+                    if (index < category.companies.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .testTag("protection-company-divider"),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    }
+                }
+            }
+        }
+        DetailsSectionHeading(
+            text = androidx.compose.ui.res.stringResource(R.string.app_state_heading)
+        )
+        model.stateOptions.filter { it.show }.forEach { option ->
+            OptionRow(
+                title = option.title,
+                description = option.description,
+                selected = option.selected,
+                onClick = { if (!option.selected) callbacks.onStateSelected(option.value) }
+            )
+        }
+        DetailsSectionHeading(
+            text = androidx.compose.ui.res.stringResource(R.string.protection_route_heading)
+        )
+        when (val route = model.route) {
+            is RouteModel.Unavailable -> EmptyMessage(route.message)
+            is RouteModel.Available -> route.options.forEach { option ->
+                OptionRow(
+                    title = option.title,
+                    description = option.description,
+                    selected = option.selected,
+                    onClick = { if (!option.selected) callbacks.onRouteSelected(option.tunnelled) }
+                )
+            }
+        }
+        if (showFirewallPlaceholders) {
+            PlaceholderRow(
+                androidx.compose.ui.res.stringResource(R.string.firewall_on_screen_only),
+                androidx.compose.ui.res.stringResource(R.string.firewall_coming_later)
+            )
+            PlaceholderRow(
+                androidx.compose.ui.res.stringResource(R.string.firewall_speed_exemption),
+                androidx.compose.ui.res.stringResource(R.string.firewall_coming_later)
+            )
+        }
+        footerNote?.let { EmptyMessage(it) }
     }
 }
 

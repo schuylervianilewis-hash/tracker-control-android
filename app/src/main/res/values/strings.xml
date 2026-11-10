@@ -877,6 +877,10 @@ Sincerely,\n\n]]></string>
     <string name="app_name_short" translatable="false">VianShield</string>
 
     <string name="firewall_block">Block</string>
+    <string name="firewall_direct">Direct</string>
+    <string name="firewall_direct_all">Direct All</string>
+    <string name="firewall_excluded_note_direct">Important: “Exclude from TrackerControl” removes this app from local monitoring and filtering. Direct avoids remote WireGuard while keeping TrackerControl enforcement active.</string>
+    <string name="firewall_exclude_from_trackercontrol_explanation_direct">Stops this app from passing through the TrackerControl VPN/TUN, so local firewall and tracker filtering will not apply. This is different from Direct, which keeps TrackerControl enforcement active.</string>
     <string name="firewall_vpn">VPN</string>
     <string name="firewall_bypass">Bypass</string>
     <string name="firewall_block_all">Block All</string>
@@ -887,7 +891,7 @@ Sincerely,\n\n]]></string>
     <string name="firewall_coming_later">Coming later</string>
     <string name="firewall_sort_install_date">Install date (newest first)</string>
     <string name="firewall_excluded_note">Important: “Exclude from TrackerControl” removes this app from local monitoring and filtering. Firewall Bypass is different: it avoids remote WireGuard while keeping TrackerControl enforcement active.</string>
-    <string name="firewall_global_action_message">Apply this policy to all listed user apps that have Internet access? System apps and this app itself are left unchanged.</string>
+    <string name="firewall_global_action_message">Apply this policy to all listed user apps? System apps and this app itself are left unchanged.</string>
     <string name="firewall_excluded_status">Excluded from TrackerControl</string>
 
 

@@ -114,7 +114,7 @@ public final class InternetPermissionPolicy {
                     continue;
 
                 String identity = packageIdentity(info);
-                if (autoByUid.containsKey(uid))
+                if (automatic.contains(automaticEntry(uid, identity)))
                     continue;
                 blocklist.block(uid);
                 automatic.add(automaticEntry(uid, identity));
