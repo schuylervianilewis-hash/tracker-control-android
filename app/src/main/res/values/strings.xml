@@ -885,12 +885,12 @@ Sincerely,\n\n]]></string>
     <string name="firewall_bypass">Bypass</string>
     <string name="firewall_block_all">Block All</string>
     <string name="firewall_vpn_all">VPN All</string>
-    <string name="firewall_bypass_all">Bypass All</string>
+    <string name="firewall_bypass_all">Direct All</string>
     <string name="firewall_on_screen_only">On-screen only</string>
     <string name="firewall_speed_exemption">Speed throttling exemption</string>
     <string name="firewall_coming_later">Coming later</string>
     <string name="firewall_sort_install_date">Install date (newest first)</string>
-    <string name="firewall_excluded_note">Important: “Exclude from TrackerControl” removes this app from local monitoring and filtering. Firewall Bypass is different: it avoids remote WireGuard while keeping TrackerControl enforcement active.</string>
+    <string name="firewall_excluded_note">Important: “Exclude from TrackerControl” removes this app from local monitoring and filtering. Direct is different: it keeps TrackerControl enforcement active but avoids remote WireGuard.</string>
     <string name="firewall_global_action_message">Apply this policy to all listed user apps? System apps and this app itself are left unchanged.</string>
     <string name="firewall_excluded_status">Excluded from TrackerControl</string>
 
@@ -901,7 +901,7 @@ Sincerely,\n\n]]></string>
 
     <string name="firewall_self_app_note">Firewall service protected</string>
     <string name="firewall_exclude_from_trackercontrol">Exclude from TrackerControl</string>
-    <string name="firewall_exclude_from_trackercontrol_explanation">Stops this app from passing through the TrackerControl VPN/TUN, so local firewall and tracker filtering will not apply. This is different from Firewall Bypass.</string>
+    <string name="firewall_exclude_from_trackercontrol_explanation">Stops this app from passing through the TrackerControl VPN/TUN, so local firewall and tracker filtering will not apply. This is different from Direct, which keeps TrackerControl enforcement active.</string>
     <string name="firewall_paused_state_label">Temporarily paused</string>
     <string name="firewall_paused_state_explanation">TrackerControl protection is temporarily paused for this app. Resume protection to restore its previous state.</string>
 </resources>

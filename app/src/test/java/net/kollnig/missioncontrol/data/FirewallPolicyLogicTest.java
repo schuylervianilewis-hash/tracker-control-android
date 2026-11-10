@@ -76,6 +76,20 @@ public class FirewallPolicyLogicTest {
         assertFalse(FirewallPolicyLogic.isSupportedSort("unknown"));
     }
 
+    @Test
+    public void quickActionIsExclusiveAndExcludedIsNotDirect() {
+        assertEquals(FirewallPolicyLogic.QUICK_ACTION_NONE,
+                FirewallPolicyLogic.quickAction(false, false, true, true));
+        assertEquals(FirewallPolicyLogic.QUICK_ACTION_BLOCK,
+                FirewallPolicyLogic.quickAction(true, true, true, true));
+        assertEquals(FirewallPolicyLogic.QUICK_ACTION_VPN,
+                FirewallPolicyLogic.quickAction(true, false, true, true));
+        assertEquals(FirewallPolicyLogic.QUICK_ACTION_DIRECT,
+                FirewallPolicyLogic.quickAction(true, false, true, false));
+        assertEquals(FirewallPolicyLogic.QUICK_ACTION_DIRECT,
+                FirewallPolicyLogic.quickAction(true, false, false, true));
+    }
+
     private static FirewallPolicyLogic.Entry entry(int priority, String name,
             String packageName, long installTime, int uid, int week, int all, long recent) {
         return new FirewallPolicyLogic.Entry(priority, name, packageName, installTime,

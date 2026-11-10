@@ -136,7 +136,7 @@ public class FirewallFragment extends Fragment {
                 new LinearLayout.LayoutParams(0, dp(44), 1f));
         actions.addView(globalButton(context, R.string.firewall_vpn_all, ACTION_VPN),
                 new LinearLayout.LayoutParams(0, dp(44), 1f));
-        actions.addView(globalButton(context, R.string.firewall_bypass_all, ACTION_DIRECT),
+        actions.addView(globalButton(context, R.string.firewall_direct_all, ACTION_DIRECT),
                 new LinearLayout.LayoutParams(0, dp(44), 1f));
         root.addView(actions, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -329,7 +329,7 @@ public class FirewallFragment extends Fragment {
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(ACTION_BLOCK.equals(action) ? R.string.firewall_block_all
                         : ACTION_VPN.equals(action) ? R.string.firewall_vpn_all
-                        : R.string.firewall_bypass_all)
+                        : R.string.firewall_direct_all)
                 .setMessage(R.string.firewall_global_action_message)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> applyGlobalAction(action))
@@ -341,8 +341,9 @@ public class FirewallFragment extends Fragment {
             return;
         List<Rule> targets = new ArrayList<>();
         for (Rule rule : allRules) {
-            if (rule.internet && rule.pkg && !rule.system
-                    && !TextUtils.equals(rule.packageName, requireContext().getPackageName()))
+            if (rule.pkg && !rule.system
+                    && !InternetPermissionPolicy.isProtectedIdentity(
+                            requireContext(), rule.packageName, rule.uid))
                 targets.add(rule);
         }
         if (targets.isEmpty())
@@ -358,10 +359,14 @@ public class FirewallFragment extends Fragment {
                 : AppProtectionState.allowInternetKeepingProtection();
 
         for (Rule rule : targets) {
-            if (ACTION_VPN.equals(action))
+            rule.apply = true;
+            if (ACTION_VPN.equals(action)) {
                 routeEditor.putBoolean(rule.packageName, true);
-            else if (ACTION_DIRECT.equals(action))
+                rule.wg_route = true;
+            } else if (ACTION_DIRECT.equals(action)) {
                 routeEditor.putBoolean(rule.packageName, false);
+                rule.wg_route = false;
+            }
             changes.add(new AppProtectionWriter.PackageChange(rule.packageName, rule.uid, change));
         }
         if (routeChanged)
@@ -378,8 +383,9 @@ public class FirewallFragment extends Fragment {
     }
 
     private void setPolicy(Rule rule, String action) {
-        if (rule == null || !rule.pkg || !rule.internet
-                || TextUtils.equals(rule.packageName, requireContext().getPackageName()))
+        if (rule == null || !rule.pkg
+                || InternetPermissionPolicy.isProtectedIdentity(
+                        requireContext(), rule.packageName, rule.uid))
             return;
         if (ACTION_VPN.equals(action) && !remoteVpnAvailable) {
             Toast.makeText(requireContext(), R.string.app_route_unavailable_no_vpn,
@@ -388,20 +394,27 @@ public class FirewallFragment extends Fragment {
         }
 
         if (ACTION_VPN.equals(action) || ACTION_DIRECT.equals(action)) {
+            boolean tunnelled = ACTION_VPN.equals(action);
             requireContext().getSharedPreferences(Rule.PREF_WG_ROUTE, Context.MODE_PRIVATE)
-                    .edit().putBoolean(rule.packageName, ACTION_VPN.equals(action)).apply();
+                    .edit().putBoolean(rule.packageName, tunnelled).apply();
+            rule.apply = true;
+            rule.wg_route = tunnelled;
             AppProtectionWriter.applyManualAndReload(requireContext(), rule.packageName, rule.uid,
                     AppProtectionState.allowInternetKeepingProtection());
         } else {
+            rule.apply = true;
             AppProtectionWriter.applyManual(requireContext(), rule.packageName, rule.uid,
                     AppProtectionState.of(AppProtectionState.NO_INTERNET));
         }
+        if (adapter != null)
+            adapter.notifyDataSetChanged();
         refresh();
     }
 
     private void toggleExpanded(Rule rule) {
-        if (rule == null || !rule.pkg || !rule.internet
-                || TextUtils.equals(rule.packageName, requireContext().getPackageName()))
+        if (rule == null || !rule.pkg
+                || InternetPermissionPolicy.isProtectedIdentity(
+                        requireContext(), rule.packageName, rule.uid))
             return;
         String next = TextUtils.equals(expandedPackage, rule.packageName) ? null : rule.packageName;
         expandedPackage = next;
@@ -440,9 +453,18 @@ public class FirewallFragment extends Fragment {
 
             @Override
             public void onStateSelected(AppProtectionState value) {
+                AppProtectionState.Change change = AppProtectionState.of(value);
                 AppProtectionWriter.applyManual(requireContext(), rule.packageName,
-                        rule.uid, AppProtectionState.of(value));
+                        rule.uid, change);
+                // Keep the bound row accurate while the fresh rule inventory
+                // and VPN-service reload complete asynchronously.
+                rule.apply = change.apply;
+                if (change.trackerProtect != null)
+                    rule.tracker_protect = change.trackerProtect;
+                if (adapter != null)
+                    adapter.notifyDataSetChanged();
                 updateProtectionState();
+                refresh();
             }
 
             @Override
@@ -626,6 +648,9 @@ public class FirewallFragment extends Fragment {
             return;
         requireContext().getSharedPreferences(Rule.PREF_WG_ROUTE, Context.MODE_PRIVATE)
                 .edit().putBoolean(rule.packageName, wantsTunnel).apply();
+        rule.wg_route = wantsTunnel;
+        if (adapter != null)
+            adapter.notifyDataSetChanged();
         Rule.clearCache(requireContext());
         ServiceSinkhole.reload("app routing changed", requireContext(), false);
         refresh();
@@ -952,19 +977,21 @@ public class FirewallFragment extends Fragment {
                 GlideApp.with(context).load(iconUri)
                         .override(dp(40), dp(40)).into(holder.icon);
             }
-            boolean active = rule.apply;
-            boolean blocked = active
-                    && InternetBlocklist.getInstance(context).blockedInternet(rule.uid);
-            boolean vpn = active && !blocked && remoteVpnAvailable && rule.wg_route;
-            boolean direct = active && !blocked && !vpn;
-            boolean protectedEngineApp = TextUtils.equals(rule.packageName, context.getPackageName());
+            boolean blocked = InternetBlocklist.getInstance(context).blockedInternet(rule.uid);
+            int quickAction = FirewallPolicyLogic.quickAction(
+                    rule.apply, blocked, remoteVpnAvailable, rule.wg_route);
+            boolean blockSelected = quickAction == FirewallPolicyLogic.QUICK_ACTION_BLOCK;
+            boolean vpnSelected = quickAction == FirewallPolicyLogic.QUICK_ACTION_VPN;
+            boolean directSelected = quickAction == FirewallPolicyLogic.QUICK_ACTION_DIRECT;
+            boolean protectedEngineApp = InternetPermissionPolicy.isProtectedIdentity(
+                    context, rule.packageName, rule.uid);
             boolean canManage = rule.pkg && !protectedEngineApp;
             holder.block.setEnabled(canManage);
             holder.vpn.setEnabled(canManage && remoteVpnAvailable);
             holder.direct.setEnabled(canManage);
-            setQuickChoice(holder.block, blocked);
-            setQuickChoice(holder.vpn, vpn);
-            setQuickChoice(holder.direct, direct);
+            setQuickChoice(holder.block, blockSelected);
+            setQuickChoice(holder.vpn, vpnSelected);
+            setQuickChoice(holder.direct, directSelected);
 
             String expandDescription = context.getString(
                     isExpanded(rule) ? R.string.firewall_collapse_app
@@ -990,18 +1017,19 @@ public class FirewallFragment extends Fragment {
                             context.getString(R.string.firewall_direct), rule.name));
             holder.header.setOnClickListener(null);
             holder.block.setOnClickListener(view -> {
-                if (!holder.block.isChecked()) holder.block.setChecked(true);
+                selectQuickAction(holder, FirewallPolicyLogic.QUICK_ACTION_BLOCK);
                 setPolicy(rule, ACTION_BLOCK);
             });
             holder.vpn.setOnClickListener(view -> {
-                if (!holder.vpn.isChecked()) holder.vpn.setChecked(true);
+                selectQuickAction(holder, FirewallPolicyLogic.QUICK_ACTION_VPN);
                 setPolicy(rule, ACTION_VPN);
             });
             holder.direct.setOnClickListener(view -> {
-                if (!holder.direct.isChecked()) holder.direct.setChecked(true);
+                selectQuickAction(holder, FirewallPolicyLogic.QUICK_ACTION_DIRECT);
                 setPolicy(rule, ACTION_DIRECT);
             });
 
+            holder.boundPackage = rule.packageName;
             holder.expanded.removeAllViews();
             boolean expanded = isExpanded(rule);
             holder.expanded.setVisibility(expanded ? View.VISIBLE : View.GONE);
@@ -1014,8 +1042,26 @@ public class FirewallFragment extends Fragment {
         }
 
         @Override
+        public void onViewRecycled(FirewallViewHolder holder) {
+            if (TextUtils.equals(holder.boundPackage, expandedPackage))
+                protectionController = null;
+            holder.expanded.removeAllViews();
+            holder.boundPackage = null;
+            super.onViewRecycled(holder);
+        }
+
+        @Override
         public int getItemCount() {
             return items.size();
+        }
+
+        private void selectQuickAction(FirewallViewHolder holder, int selected) {
+            setQuickChoice(holder.block,
+                    selected == FirewallPolicyLogic.QUICK_ACTION_BLOCK);
+            setQuickChoice(holder.vpn,
+                    selected == FirewallPolicyLogic.QUICK_ACTION_VPN);
+            setQuickChoice(holder.direct,
+                    selected == FirewallPolicyLogic.QUICK_ACTION_DIRECT);
         }
 
         private String statusLabel(Rule rule) {
@@ -1059,6 +1105,7 @@ public class FirewallFragment extends Fragment {
         final MaterialCheckBox vpn;
         final MaterialCheckBox direct;
         final LinearLayout expanded;
+        String boundPackage;
 
         FirewallViewHolder(View itemView, LinearLayout header, ImageView icon,
                 TextView name, TextView status, MaterialCheckBox block, MaterialCheckBox vpn,

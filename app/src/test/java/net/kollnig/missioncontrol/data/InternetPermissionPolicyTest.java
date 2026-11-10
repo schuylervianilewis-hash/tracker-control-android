@@ -16,6 +16,23 @@ public class InternetPermissionPolicyTest {
         assertFalse(InternetPermissionPolicy.shouldAutoBlock(false, true, false, false));
         assertFalse(InternetPermissionPolicy.shouldAutoBlock(false, false, true, false));
         assertFalse(InternetPermissionPolicy.shouldAutoBlock(false, false, false, true));
+        assertFalse(InternetPermissionPolicy.shouldAutoBlock(false, false, false, false, true));
+    }
+
+    @Test
+    public void automaticDenyIsNotReleasedForTemporaryInventoryGap() {
+        assertFalse(InternetPermissionPolicy.shouldReleaseAutomaticBlock(false, false, false));
+        assertFalse(InternetPermissionPolicy.shouldReleaseAutomaticBlock(true, false, true));
+        assertTrue(InternetPermissionPolicy.shouldReleaseAutomaticBlock(true, false, false));
+        assertTrue(InternetPermissionPolicy.shouldReleaseAutomaticBlock(true, true, true));
+    }
+
+    @Test
+    public void criticalPlatformIdentitiesAreExempt() {
+        assertTrue(InternetPermissionPolicy.isCriticalSystemPackage("android"));
+        assertTrue(InternetPermissionPolicy.isCriticalSystemPackage("com.android.systemui"));
+        assertTrue(InternetPermissionPolicy.isCriticalSystemPackage("com.android.networkstack"));
+        assertFalse(InternetPermissionPolicy.isCriticalSystemPackage("com.example.app"));
     }
 
     @Test

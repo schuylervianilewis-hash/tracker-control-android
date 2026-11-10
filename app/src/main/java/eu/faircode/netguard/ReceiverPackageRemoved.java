@@ -28,6 +28,7 @@ import android.util.Log;
 import androidx.core.app.NotificationManagerCompat;
 
 import net.kollnig.missioncontrol.data.InternetBlocklist;
+import net.kollnig.missioncontrol.data.InternetPermissionPolicy;
 import net.kollnig.missioncontrol.data.PackageUids;
 import net.kollnig.missioncontrol.data.PausedApps;
 import net.kollnig.missioncontrol.data.TrackerBlocklist;
@@ -82,9 +83,11 @@ public class ReceiverPackageRemoved extends BroadcastReceiver {
             int uid = intent.getIntExtra(Intent.EXTRA_UID, 0);
             String packageName = intent.getData() == null ? null : intent.getData().getSchemeSpecificPart();
             PausedApps.onPackageRemoved(context, packageName, uid);
-            if (packageName != null)
+            if (packageName != null) {
                 context.getSharedPreferences("tracker_essential", Context.MODE_PRIVATE)
                         .edit().remove(packageName).apply();
+                InternetPermissionPolicy.onPackageFullyRemoved(context, packageName, uid);
+            }
             if (uid > 0) {
                 clearUidState(context, uid, PackageUids.lookup(context));
             }

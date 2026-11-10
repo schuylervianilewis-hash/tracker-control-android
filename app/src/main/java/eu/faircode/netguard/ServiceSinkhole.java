@@ -88,6 +88,7 @@ import net.kollnig.missioncontrol.data.BlockingMode;
 import net.kollnig.missioncontrol.data.BlockingModeLogic;
 import net.kollnig.missioncontrol.data.PausedApps;
 import net.kollnig.missioncontrol.data.InternetBlocklist;
+import net.kollnig.missioncontrol.data.InternetPermissionPolicy;
 import net.kollnig.missioncontrol.data.RemoteRoutingLogic;
 import net.kollnig.missioncontrol.data.Tracker;
 import net.kollnig.missioncontrol.data.TrackerBlocklist;
@@ -805,6 +806,9 @@ public class ServiceSinkhole extends VpnService {
                 state = State.enforcing;
                 Log.d(TAG, "Start foreground state=" + state.toString());
 
+                // Service-owned reconciliation runs even with the Activity closed.
+                if (InternetPermissionPolicy.reconcile(ServiceSinkhole.this))
+                    Log.i(TAG, "Applied automatic Internet-permission policy at VPN start");
                 List<Rule> listRule = Rule.getRules(true, ServiceSinkhole.this);
                 List<Rule> listAllowed = getAllowedRules(listRule);
 
@@ -825,6 +829,9 @@ public class ServiceSinkhole extends VpnService {
         }
 
         private void reload(boolean interactive) {
+            // Reconcile package permissions before the service rebuilds its rules.
+            if (InternetPermissionPolicy.reconcile(ServiceSinkhole.this))
+                Log.i(TAG, "Applied automatic Internet-permission policy during VPN reload");
             List<Rule> listRule = Rule.getRules(true, ServiceSinkhole.this);
 
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(ServiceSinkhole.this);
@@ -3615,6 +3622,10 @@ public class ServiceSinkhole extends VpnService {
 
             reload("package added", context, false);
 
+        } else if (Intent.ACTION_PACKAGE_REPLACED.equals(intent.getAction())) {
+            Rule.clearCache(context);
+            reload("package replaced", context, false);
+
         } else if (Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction())) {
             // Application removed
             Rule.clearCache(context);
@@ -3867,6 +3878,7 @@ public class ServiceSinkhole extends VpnService {
         IntentFilter ifPackage = new IntentFilter();
         ifPackage.addAction(Intent.ACTION_PACKAGE_ADDED);
         ifPackage.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        ifPackage.addAction(Intent.ACTION_PACKAGE_REPLACED);
         ifPackage.addDataScheme("package");
         ContextCompat.registerReceiver(this, packageChangedReceiver, ifPackage, ContextCompat.RECEIVER_NOT_EXPORTED);
 

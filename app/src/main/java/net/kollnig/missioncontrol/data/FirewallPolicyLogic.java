@@ -23,6 +23,11 @@ public final class FirewallPolicyLogic {
     public static final int PRIORITY_DIRECT = 2;
     public static final int PRIORITY_EXCLUDED = 3;
 
+    public static final int QUICK_ACTION_NONE = 0;
+    public static final int QUICK_ACTION_BLOCK = 1;
+    public static final int QUICK_ACTION_VPN = 2;
+    public static final int QUICK_ACTION_DIRECT = 3;
+
     private FirewallPolicyLogic() {
     }
 
@@ -33,6 +38,21 @@ public final class FirewallPolicyLogic {
         if (internetBlocked)
             return PRIORITY_BLOCKED;
         return tunnelled ? PRIORITY_VPN : PRIORITY_DIRECT;
+    }
+
+    /**
+     * Resolve the collapsed Firewall row's single selected quick action.
+     * Excluded is deliberately unselected: Exclude from TrackerControl is not
+     * Direct. Block takes precedence over remote routing.
+     */
+    public static int quickAction(boolean apply, boolean internetBlocked,
+            boolean remoteVpnAvailable, boolean tunnelled) {
+        if (!apply)
+            return QUICK_ACTION_NONE;
+        if (internetBlocked)
+            return QUICK_ACTION_BLOCK;
+        return remoteVpnAvailable && tunnelled
+                ? QUICK_ACTION_VPN : QUICK_ACTION_DIRECT;
     }
 
     public static Comparator<Entry> comparator(String sortMode) {
