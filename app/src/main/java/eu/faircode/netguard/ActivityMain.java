@@ -1217,7 +1217,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 Intent intent = getIntent();
                 intent.removeExtra(EXTRA_SEARCH);
 
-                clearListSearches();
+                clearCurrentListSearch();
                 return true;
             }
         });
@@ -1425,6 +1425,14 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         boolean vpn = itemId == R.id.nav_vpn;
         boolean tracker = itemId == R.id.nav_apps;
         boolean settings = itemId == R.id.nav_settings;
+        int previousTab = currentTab;
+        // Preserve Tracker's original search lifecycle: leaving either app-list
+        // tab collapses the shared SearchView, while each tab keeps its own query.
+        boolean leavingTracker = previousTab == R.id.nav_apps && !tracker;
+        boolean leavingFirewall = previousTab == R.id.nav_firewall && !firewall;
+        if ((leavingTracker || leavingFirewall) && menuSearch != null
+                && menuSearch.isActionViewExpanded())
+            menuSearch.collapseActionView();
         currentTab = itemId;
 
         if (vpn)
@@ -1435,15 +1443,14 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 firewallFragment.refresh();
         }
 
-        // The toolbar SearchView is shared, but each app-list destination keeps
-        // its own query. Restore the destination's query when switching lists.
+        // When search is expanded from another destination, restore the
+        // destination-specific query after the deferred tab switch.
         if ((tracker || firewall) && menuSearch != null && menuSearch.isActionViewExpanded()) {
             SearchView searchView = (SearchView) menuSearch.getActionView();
             String targetQuery = firewall ? firewallSearchQuery : trackerSearchQuery;
-            if (!TextUtils.equals(searchView.getQuery(), targetQuery)) {
+            if (!TextUtils.equals(searchView.getQuery(), targetQuery))
                 searchView.setQuery(targetQuery, false);
-                filterCurrentList(targetQuery);
-            }
+            filterCurrentList(targetQuery);
         }
 
         // The original TrackerControl app list and Timeline remain intact;
@@ -1457,10 +1464,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         if (settings)
             refreshSettingsHost();
 
-        // Search is shared by the two app-list destinations, but each list owns
-        // its own query state. Collapse it only when leaving both destinations.
-        if (!tracker && !firewall && menuSearch != null && menuSearch.isActionViewExpanded())
-            menuSearch.collapseActionView();
+
 
         // No invalidateOptionsMenu(): filter/sort live in the overflow,
         // which calls onPrepareOptionsMenu the next time it is opened, so
@@ -1501,13 +1505,16 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 .commit();
     }
 
-    private void clearListSearches() {
-        trackerSearchQuery = "";
-        firewallSearchQuery = "";
-        if (adapter != null)
-            adapter.getFilter().filter(null);
-        if (firewallFragment != null)
-            firewallFragment.setSearchQuery(null);
+    private void clearCurrentListSearch() {
+        if (currentTab == R.id.nav_firewall) {
+            firewallSearchQuery = "";
+            if (firewallFragment != null)
+                firewallFragment.setSearchQuery(null);
+        } else {
+            trackerSearchQuery = "";
+            if (adapter != null)
+                adapter.getFilter().filter(null);
+        }
     }
 
     private void filterCurrentList(String query) {
