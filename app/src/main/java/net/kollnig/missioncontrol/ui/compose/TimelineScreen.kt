@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -670,9 +671,10 @@ private fun VianshieldDashboard(
                 .size(136.dp)
                 .clip(CircleShape)
                 .background(protectionBackground)
-                .clickable(
-                    role = Role.Button,
-                    onClick = { callbacks.onProtectionToggle(!protectionEnabled) }
+                .toggleable(
+                    value = protectionEnabled,
+                    role = Role.Switch,
+                    onValueChange = callbacks::onProtectionToggle
                 )
                 .semantics(mergeDescendants = true) {
                     contentDescription = protectionDescription
@@ -684,11 +686,11 @@ private fun VianshieldDashboard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text = "◈",
-                    color = protectionForeground,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
+                Icon(
+                    painter = painterResource(R.drawable.ic_shield_plain),
+                    contentDescription = null,
+                    tint = protectionForeground,
+                    modifier = Modifier.size(36.dp)
                 )
                 Text(
                     text = protectionLabel,
