@@ -119,4 +119,9 @@
     <style name="TextMedium" parent="TextAppearance.Material3.BodyLarge" />
     <style name="TextSmall" parent="TextAppearance.Material3.BodyMedium" />
     <style name="TextTitle" parent="TextAppearance.Material3.TitleLarge" />
+
+    <!-- Slightly larger labels to balance the enlarged bottom-navigation icons. -->
+    <style name="VianshieldBottomNavLabel" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:textSize">13sp</item>
+    </style>
 </resources>

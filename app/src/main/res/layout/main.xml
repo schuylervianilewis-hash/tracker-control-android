@@ -264,10 +264,14 @@
         android:id="@+id/bottomNav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="82dp"
         android:background="@color/bottom_nav_background"
         app:backgroundTint="@color/bottom_nav_background"
         app:itemActiveIndicatorStyle="@style/TrackerControlBottomNavActiveIndicator"
+        app:itemIconSize="28dp"
         app:itemIconTint="@color/bottom_nav_item_color"
+        app:itemTextAppearanceActive="@style/VianshieldBottomNavLabel"
+        app:itemTextAppearanceInactive="@style/VianshieldBottomNavLabel"
         app:itemTextColor="@color/bottom_nav_item_color"
         app:menu="@menu/bottom_nav" />
 </LinearLayout>

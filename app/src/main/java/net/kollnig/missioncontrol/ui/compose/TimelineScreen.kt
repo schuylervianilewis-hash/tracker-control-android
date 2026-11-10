@@ -12,6 +12,7 @@ import android.graphics.drawable.Drawable
 import android.text.format.DateUtils
 import android.widget.ImageView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.shape.CircleShape
@@ -51,6 +52,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
@@ -638,22 +641,30 @@ private fun VianshieldDashboard(
     protectionEnabled: Boolean,
     callbacks: TimelineScreenCallbacks
 ) {
-    val protectionLabel = stringResource(
-        if (protectionEnabled) R.string.dashboard_protection_on
-        else R.string.dashboard_protection_off
-    )
     val protectionDescription = stringResource(
         if (protectionEnabled) R.string.dashboard_protection_on_description
         else R.string.dashboard_protection_off_description
     )
-    val protectionBackground = if (protectionEnabled)
-        MaterialTheme.colorScheme.primary
-    else
-        MaterialTheme.colorScheme.surfaceVariant
-    val protectionForeground = if (protectionEnabled)
-        MaterialTheme.colorScheme.onPrimary
-    else
-        MaterialTheme.colorScheme.onSurfaceVariant
+    val protectionAccent = if (protectionEnabled) Color(0xFF218B4B) else Color(0xFF64748B)
+    val protectionGlow = Brush.radialGradient(
+        colors = if (protectionEnabled) {
+            listOf(Color(0x332D9A59), Color(0x172D9A59), Color.Transparent)
+        } else {
+            listOf(Color(0x160F172A), Color(0x080F172A), Color.Transparent)
+        }
+    )
+    val protectionFill = Brush.radialGradient(
+        colors = if (protectionEnabled) {
+            listOf(Color.White, Color(0xFFF5FBF6), Color(0xFFE5F2E9))
+        } else {
+            listOf(Color.White, Color(0xFFF8FAFC), Color(0xFFEEF2F5))
+        }
+    )
+    val protectionBorder = if (protectionEnabled) {
+        Brush.linearGradient(listOf(Color(0xFF278D4E), Color(0xFF8BC99D)))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFF8B99A7), Color(0xFFD3DAE0)))
+    }
     val speedThrottlingTitle = stringResource(R.string.dashboard_speed_throttling)
     val dnsChangerTitle = stringResource(R.string.dashboard_dns_changer)
     val adFilterTitle = stringResource(R.string.dashboard_ad_filter)
@@ -666,38 +677,37 @@ private fun VianshieldDashboard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // A soft halo surrounds a white, outlined power button, matching the
+        // lighter visual language of the reference dashboard.
         Box(
             modifier = Modifier
-                .size(136.dp)
-                .clip(CircleShape)
-                .background(protectionBackground)
-                .toggleable(
-                    value = protectionEnabled,
-                    role = Role.Switch,
-                    onValueChange = callbacks::onProtectionToggle
-                )
-                .semantics(mergeDescendants = true) {
-                    contentDescription = protectionDescription
-                }
-                .testTag("dashboard-protection-toggle"),
+                .size(152.dp)
+                .background(protectionGlow, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            Box(
+                modifier = Modifier
+                    .size(136.dp)
+                    .shadow(elevation = 8.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(protectionFill)
+                    .border(2.dp, protectionBorder, CircleShape)
+                    .toggleable(
+                        value = protectionEnabled,
+                        role = Role.Switch,
+                        onValueChange = callbacks::onProtectionToggle
+                    )
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = protectionDescription
+                    }
+                    .testTag("dashboard-protection-toggle"),
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_shield_plain),
+                    painter = painterResource(R.drawable.ic_power_settings_new),
                     contentDescription = null,
-                    tint = protectionForeground,
-                    modifier = Modifier.size(36.dp)
-                )
-                Text(
-                    text = protectionLabel,
-                    color = protectionForeground,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
+                    tint = protectionAccent,
+                    modifier = Modifier.size(52.dp)
                 )
             }
         }
@@ -712,14 +722,16 @@ private fun VianshieldDashboard(
             ) {
                 DashboardFeatureCard(
                     title = speedThrottlingTitle,
-                    symbol = "↕",
+                    iconRes = R.drawable.ic_speedometer_dashboard,
+                    iconTint = Color(0xFF3288D8),
                     testTag = "dashboard-card-speed-throttling",
                     modifier = Modifier.weight(1f),
                     onClick = { callbacks.onOpenFeaturePage(speedThrottlingTitle) }
                 )
                 DashboardFeatureCard(
                     title = dnsChangerTitle,
-                    symbol = "⌁",
+                    iconRes = R.drawable.ic_dns_dashboard,
+                    iconTint = Color(0xFF16A6A1),
                     testTag = "dashboard-card-dns-changer",
                     modifier = Modifier.weight(1f),
                     onClick = { callbacks.onOpenFeaturePage(dnsChangerTitle) }
@@ -731,14 +743,16 @@ private fun VianshieldDashboard(
             ) {
                 DashboardFeatureCard(
                     title = adFilterTitle,
-                    symbol = "✦",
+                    iconRes = R.drawable.ic_filter_dashboard,
+                    iconTint = Color(0xFF8B5CF6),
                     testTag = "dashboard-card-ad-filter",
                     modifier = Modifier.weight(1f),
                     onClick = { callbacks.onOpenFeaturePage(adFilterTitle) }
                 )
                 DashboardFeatureCard(
                     title = blockedDomainsTitle,
-                    symbol = "⊘",
+                    iconRes = R.drawable.ic_block_dashboard,
+                    iconTint = Color(0xFFE15B64),
                     testTag = "dashboard-card-blocked-domains",
                     modifier = Modifier.weight(1f),
                     onClick = { callbacks.onOpenFeaturePage(blockedDomainsTitle) }
@@ -751,38 +765,44 @@ private fun VianshieldDashboard(
 @Composable
 private fun DashboardFeatureCard(
     title: String,
-    symbol: String,
+    iconRes: Int,
+    iconTint: Color,
     testTag: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Card(
         modifier = modifier
-            .height(76.dp)
+            .height(84.dp)
             .clickable(role = Role.Button, onClick = onClick)
             .testTag(testTag),
-        shape = RoundedCornerShape(18.dp),
+        shape = shape,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = Color.White,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, Color(0xFFE9EEF1))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 6.dp, vertical = 7.dp),
+                .padding(horizontal = 6.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
         ) {
-            Text(
-                text = symbol,
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(24.dp)
             )
             Text(
                 text = title,
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis

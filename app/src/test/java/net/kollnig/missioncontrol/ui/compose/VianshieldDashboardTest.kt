@@ -1,6 +1,7 @@
 package net.kollnig.missioncontrol.ui.compose
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -61,7 +62,9 @@ class VianshieldDashboardTest {
         }
 
         compose.onNodeWithTag("dashboard-protection-toggle").assertIsDisplayed()
-        compose.onNodeWithText(context.getString(R.string.dashboard_protection_off)).assertIsDisplayed()
+        compose.onNodeWithTag("dashboard-protection-toggle").assertContentDescriptionEquals(
+            context.getString(R.string.dashboard_protection_off_description)
+        )
         compose.onNodeWithTag("dashboard-card-speed-throttling").assertIsDisplayed()
         compose.onNodeWithTag("dashboard-card-dns-changer").assertIsDisplayed()
         compose.onNodeWithTag("dashboard-card-ad-filter").assertIsDisplayed()
