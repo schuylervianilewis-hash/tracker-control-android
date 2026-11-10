@@ -150,6 +150,28 @@ public class DnsChangerConfigTest {
     }
 
     @Test
+    public void wireGuardProfileStatusMatchesEngineDnsAcceptance() {
+        prefs.edit()
+                .putBoolean("wg_enabled", true)
+                .putString("wg_config",
+                        "[Interface]\n" +
+                        "PrivateKey = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n" +
+                        "Address = 10.64.0.2/32\n" +
+                        "DNS = fe80::1, 224.0.0.1, 10.64.0.1\n" +
+                        "\n[Peer]\n" +
+                        "PublicKey = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n" +
+                        "AllowedIPs = 0.0.0.0/0\n" +
+                        "Endpoint = 198.51.100.1:51820\n")
+                .commit();
+
+        List<String> status = DnsChangerConfig.getWireGuardProfileDns(prefs);
+        assertEquals(3, status.size());
+        assertEquals("fe80:0:0:0:0:0:0:1", status.get(0));
+        assertEquals("224.0.0.1", status.get(1));
+        assertEquals("10.64.0.1", status.get(2));
+    }
+
+    @Test
     public void invalidStoredModeFallsBackToAutomatic() {
         prefs.edit().putString(DnsChangerConfig.PREF_DNS_MODE, "not-a-mode").commit();
         assertEquals(DnsChangerConfig.MODE_AUTOMATIC,

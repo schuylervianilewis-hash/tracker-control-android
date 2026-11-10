@@ -106,19 +106,15 @@ public final class DnsChangerConfig {
         }
     }
 
-    /** Numeric DNS entries from the active profile, for the status line only. */
+    /** Effective numeric DNS entries from the active profile, for the status line only. */
     public static List<String> getWireGuardProfileDns(SharedPreferences prefs) {
         List<String> result = new ArrayList<>();
         if (!isWireGuardActive(prefs))
             return result;
         try {
             WgConfig config = WgConfigParser.INSTANCE.parse(prefs.getString("wg_config", ""));
-            for (String entry : config.getDns()) {
-                String value = entry == null ? "" : entry.trim();
-                InetAddress address = parseNumeric(value);
-                if (address != null && isUsable(address) && !result.contains(value))
-                    result.add(value);
-            }
+            for (InetAddress address : parseWireGuardDns(config.getDns()))
+                result.add(address.getHostAddress());
         } catch (Throwable ignored) {
             // The WireGuard screen already owns config validation and error UI.
         }
