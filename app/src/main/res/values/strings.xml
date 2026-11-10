@@ -914,7 +914,7 @@ Sincerely,\n\n]]></string>
     <string name="dns_changer_status_wireguard_off">WireGuard is off. Network-provided DNS is used now; profile DNS will apply when WireGuard is enabled.</string>
     <string name="dns_changer_status_normal">The selected DNS mode is used for apps routed through the Vianshield VPN.</string>
     <string name="dns_mode_automatic">Automatic</string>
-    <string name="dns_mode_automatic_summary">Use the DNS servers provided by your current Wi-Fi or mobile network.</string>
+    <string name="dns_mode_automatic_summary">Use your network DNS, or the active WireGuard profile DNS while WireGuard is running.</string>
     <string name="dns_mode_cloudflare">Cloudflare</string>
     <string name="dns_mode_cloudflare_summary">Standard DNS · 1.1.1.1 and 1.0.0.1.</string>
     <string name="dns_mode_google">Google Public DNS</string>

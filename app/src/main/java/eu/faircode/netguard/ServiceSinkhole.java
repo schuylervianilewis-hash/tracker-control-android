@@ -1707,7 +1707,10 @@ public class ServiceSinkhole extends VpnService {
             SharedPreferences prefs,
             net.kollnig.missioncontrol.wg.WgConfig config) {
         String mode = DnsChangerConfig.getSelectedMode(prefs, true);
-        if (!DnsChangerConfig.MODE_WIREGUARD.equals(mode))
+        // Automatic preserves the engine's existing WireGuard DNS precedence.
+        // Only an explicit public-provider or Custom choice replaces profile DNS.
+        if (DnsChangerConfig.isProviderMode(mode) ||
+                DnsChangerConfig.MODE_CUSTOM.equals(mode))
             return getDns(context);
 
         boolean ip6 = prefs.getBoolean("ip6", true);

@@ -105,7 +105,7 @@ public class ServiceSinkholeDnsSelectionTest {
     }
 
     @Test
-    public void automaticModeOverridesWireGuardProfileDns() throws Exception {
+    public void automaticModeKeepsUsingWireGuardProfileDns() throws Exception {
         prefs.edit().putString(
                 DnsChangerConfig.PREF_DNS_MODE,
                 DnsChangerConfig.MODE_AUTOMATIC).commit();
@@ -113,7 +113,22 @@ public class ServiceSinkholeDnsSelectionTest {
         List<InetAddress> result = ServiceSinkhole.getWireGuardDnsForSelection(
                 context, prefs, parse("DNS = 10.64.0.1\n"));
 
-        assertTrue(result.size() > 0);
-        assertTrue(result.stream().noneMatch(dns -> "10.64.0.1".equals(dns.getHostAddress())));
+        assertEquals(1, result.size());
+        assertEquals("10.64.0.1", result.get(0).getHostAddress());
+    }
+
+    @Test
+    public void automaticModeUsesProtectedFallbackWhenWireGuardProfileHasNoDns()
+            throws Exception {
+        prefs.edit().putString(
+                DnsChangerConfig.PREF_DNS_MODE,
+                DnsChangerConfig.MODE_AUTOMATIC).commit();
+
+        List<InetAddress> result = ServiceSinkhole.getWireGuardDnsForSelection(
+                context, prefs, parse(""));
+
+        assertTrue(result.size() >= 2);
+        assertTrue(result.stream().anyMatch(dns -> "9.9.9.9".equals(dns.getHostAddress())));
+        assertTrue(result.stream().anyMatch(dns -> "149.112.112.112".equals(dns.getHostAddress())));
     }
 }

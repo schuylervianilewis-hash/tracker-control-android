@@ -148,7 +148,9 @@ internal fun DnsChangerScreen(onBack: () -> Unit) {
                         dohActive -> androidx.compose.ui.res.stringResource(
                             R.string.dns_changer_status_doh
                         )
-                        wireGuardActive && currentMode == DnsChangerConfig.MODE_WIREGUARD -> {
+                        wireGuardActive &&
+                                (currentMode == DnsChangerConfig.MODE_WIREGUARD ||
+                                        currentMode == DnsChangerConfig.MODE_AUTOMATIC) -> {
                             if (profileDns.isEmpty())
                                 androidx.compose.ui.res.stringResource(
                                     R.string.dns_changer_status_wireguard_fallback
