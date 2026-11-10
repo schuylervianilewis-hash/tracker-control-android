@@ -94,6 +94,8 @@ public class FirewallFragment extends Fragment {
     private final Handler expiryHandler = new Handler(Looper.getMainLooper());
     private final Runnable expiryRunnable = this::onPauseExpired;
     private final List<Rule> allRules = new ArrayList<>();
+    @Nullable private List<Rule> searchPool;
+    private boolean loadingSearchPool;
     private final List<TrackerCategory> blockedTrackerCategories = new ArrayList<>();
 
     private SwipeRefreshLayout swipeRefresh;
@@ -196,6 +198,8 @@ public class FirewallFragment extends Fragment {
 
     public void setSearchQuery(String query) {
         searchQuery = query == null ? "" : query.trim();
+        if (!TextUtils.isEmpty(searchQuery) && searchPool == null)
+            loadSearchPool();
         applyFilterAndSort();
     }
 
@@ -216,6 +220,9 @@ public class FirewallFragment extends Fragment {
                 allRules.clear();
                 if (result != null)
                     allRules.addAll(result);
+                searchPool = null;
+                if (!TextUtils.isEmpty(searchQuery))
+                    loadSearchPool();
                 applyFilterAndSort();
                 if (swipeRefresh != null)
                     swipeRefresh.setRefreshing(false);
@@ -227,16 +234,12 @@ public class FirewallFragment extends Fragment {
         if (adapter == null || !isAdded())
             return;
         List<Rule> source = new ArrayList<>(allRules);
-        if (!TextUtils.isEmpty(searchQuery)) {
+        if (!TextUtils.isEmpty(searchQuery) && searchPool != null) {
             Map<String, Rule> byPackage = new HashMap<>();
             for (Rule rule : source)
                 byPackage.put(rule.packageName, rule);
-            try {
-                for (Rule stub : Rule.getSearchStubs(requireContext()))
-                    byPackage.putIfAbsent(stub.packageName, stub);
-            } catch (Throwable ignored) {
-                // Keep the visible inventory searchable if a package disappears mid-query.
-            }
+            for (Rule stub : searchPool)
+                byPackage.putIfAbsent(stub.packageName, stub);
             source = new ArrayList<>(byPackage.values());
         }
 
@@ -269,6 +272,26 @@ public class FirewallFragment extends Fragment {
         adapter.setItems(filtered);
     }
 
+    private void loadSearchPool() {
+        if (loadingSearchPool || searchPool != null || !isAdded())
+            return;
+        androidx.fragment.app.FragmentActivity activity = getActivity();
+        if (activity == null)
+            return;
+        loadingSearchPool = true;
+        Context context = requireContext().getApplicationContext();
+        AsyncTask.execute(() -> {
+            List<Rule> result = Rule.getSearchStubs(context);
+            activity.runOnUiThread(() -> {
+                loadingSearchPool = false;
+                if (!isAdded() || destroyed)
+                    return;
+                searchPool = result == null ? Collections.emptyList() : result;
+                applyFilterAndSort();
+            });
+        });
+    }
+
     private MaterialButton globalButton(Context context, int title, String action) {
         MaterialButton button = new MaterialButton(context);
         button.setText(title);
@@ -277,8 +300,6 @@ public class FirewallFragment extends Fragment {
         button.setInsetTop(0);
         button.setInsetBottom(0);
         button.setCornerRadius(dp(10));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        params.setMargins(dp(2), 0, dp(2), 0);
         button.setOnClickListener(view -> confirmGlobalAction(action));
         return button;
     }
@@ -623,15 +644,18 @@ public class FirewallFragment extends Fragment {
     }
 
     private void onPauseExpired() {
+        if (!isAdded())
+            return;
+        Context context = requireContext().getApplicationContext();
+        androidx.fragment.app.FragmentActivity activity = getActivity();
+        if (activity == null)
+            return;
         AsyncTask.execute(() -> {
-            if (!isAdded())
-                return;
-            PausedApps.sweep(requireContext());
-            if (isAdded())
-                requireActivity().runOnUiThread(() -> {
-                    if (!destroyed)
-                        updateProtectionState();
-                });
+            PausedApps.sweep(context);
+            activity.runOnUiThread(() -> {
+                if (isAdded() && !destroyed)
+                    updateProtectionState();
+            });
         });
     }
 
