@@ -96,6 +96,8 @@ public class FirewallFragment extends Fragment {
     private final Handler expiryHandler = new Handler(Looper.getMainLooper());
     private final Runnable expiryRunnable = this::onPauseExpired;
     private final List<Rule> allRules = new ArrayList<>();
+    @Nullable private List<Rule> searchPool;
+    private boolean loadingSearchPool;
     private final List<TrackerCategory> blockedTrackerCategories = new ArrayList<>();
 
     private SwipeRefreshLayout swipeRefresh;
@@ -200,6 +202,8 @@ public class FirewallFragment extends Fragment {
 
     public void setSearchQuery(String query) {
         searchQuery = query == null ? "" : query.trim();
+        if (!TextUtils.isEmpty(searchQuery) && searchPool == null)
+            loadSearchPool();
         applyFilterAndSort();
     }
 
@@ -214,12 +218,17 @@ public class FirewallFragment extends Fragment {
             return;
         AsyncTask.execute(() -> {
             List<Rule> result = Rule.getRules(false, true, context);
+            boolean routeAvailable = isRemoteVpnAvailable(context);
             activity.runOnUiThread(() -> {
                 if (destroyed || !isAdded() || adapter == null)
                     return;
                 allRules.clear();
                 if (result != null)
                     allRules.addAll(result);
+                searchPool = null;
+                remoteVpnAvailable = routeAvailable;
+                if (!TextUtils.isEmpty(searchQuery))
+                    loadSearchPool();
                 applyFilterAndSort();
                 if (swipeRefresh != null)
                     swipeRefresh.setRefreshing(false);
@@ -231,16 +240,12 @@ public class FirewallFragment extends Fragment {
         if (adapter == null || !isAdded())
             return;
         List<Rule> source = new ArrayList<>(allRules);
-        if (!TextUtils.isEmpty(searchQuery)) {
+        if (!TextUtils.isEmpty(searchQuery) && searchPool != null) {
             Map<String, Rule> byPackage = new HashMap<>();
             for (Rule rule : source)
                 byPackage.put(rule.packageName, rule);
-            try {
-                for (Rule stub : Rule.getSearchStubs(requireContext()))
-                    byPackage.putIfAbsent(stub.packageName, stub);
-            } catch (Throwable ignored) {
-                // Keep the visible inventory searchable if a package disappears mid-query.
-            }
+            for (Rule stub : searchPool)
+                byPackage.putIfAbsent(stub.packageName, stub);
             source = new ArrayList<>(byPackage.values());
         }
 
@@ -254,7 +259,6 @@ public class FirewallFragment extends Fragment {
         }
 
         final InternetBlocklist internet = InternetBlocklist.getInstance(requireContext());
-        remoteVpnAvailable = isRemoteVpnAvailable();
         final boolean vpnAvailable = remoteVpnAvailable;
         final String selectedSort = sortMode;
         Collections.sort(filtered, (left, right) -> {
@@ -271,6 +275,27 @@ public class FirewallFragment extends Fragment {
             return FirewallPolicyLogic.comparator(selectedSort).compare(a, b);
         });
         adapter.setItems(filtered);
+    }
+
+    /** Build the all-installed-app search pool off the main thread, like Tracker's adapter. */
+    private void loadSearchPool() {
+        if (loadingSearchPool || searchPool != null || !isAdded())
+            return;
+        androidx.fragment.app.FragmentActivity activity = getActivity();
+        if (activity == null)
+            return;
+        loadingSearchPool = true;
+        Context context = requireContext().getApplicationContext();
+        AsyncTask.execute(() -> {
+            List<Rule> result = Rule.getSearchStubs(context);
+            activity.runOnUiThread(() -> {
+                loadingSearchPool = false;
+                if (!isAdded() || destroyed)
+                    return;
+                searchPool = result == null ? Collections.emptyList() : result;
+                applyFilterAndSort();
+            });
+        });
     }
 
     private MaterialButton globalButton(Context context, int title, String action) {
@@ -338,10 +363,14 @@ public class FirewallFragment extends Fragment {
     }
 
     private boolean isRemoteVpnAvailable() {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+        return isRemoteVpnAvailable(requireContext());
+    }
+
+    private static boolean isRemoteVpnAvailable(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
         return prefs.getBoolean("wg_enabled", false)
                 && !TextUtils.isEmpty(prefs.getString("wg_config", ""))
-                && RemoteRoutingHelper.hasDefaultRoutes(requireContext(), prefs);
+                && RemoteRoutingHelper.hasDefaultRoutes(context, prefs);
     }
 
     private void setPolicy(Rule rule, String action) {

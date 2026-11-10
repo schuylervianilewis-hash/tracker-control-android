@@ -1429,8 +1429,11 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
 
         if (vpn)
             ensureVpnFragment();
-        if (firewall)
+        if (firewall) {
             ensureFirewallFragment();
+            if (firewallFragment != null)
+                firewallFragment.refresh();
+        }
 
         // The toolbar SearchView is shared, but each app-list destination keeps
         // its own query. Restore the destination's query when switching lists.
