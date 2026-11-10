@@ -38,6 +38,8 @@ public class FirewallPolicyLogicTest {
     public void blockIsEffectiveOnlyWhenTrackerControlStillApplies() {
         assertEquals(FirewallPolicyLogic.PRIORITY_BLOCKED,
                 FirewallPolicyLogic.priority(true, true, false));
+        assertEquals(FirewallPolicyLogic.PRIORITY_BLOCKED,
+                FirewallPolicyLogic.priority(true, true, true));
         assertEquals(FirewallPolicyLogic.PRIORITY_BYPASS,
                 FirewallPolicyLogic.priority(false, true, true));
         assertEquals(FirewallPolicyLogic.PRIORITY_VPN,

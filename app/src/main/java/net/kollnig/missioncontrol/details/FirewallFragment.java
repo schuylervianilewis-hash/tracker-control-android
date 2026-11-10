@@ -520,8 +520,8 @@ public class FirewallFragment extends Fragment {
                 getString(R.string.app_state_no_internet), noInternetExplanation,
                 shownState == AppProtectionState.NO_INTERNET, true));
         options.add(new StateOption(AppProtectionState.BYPASSED,
-                getString(R.string.app_state_bypassed),
-                getString(R.string.app_state_bypassed_explanation),
+                getString(R.string.firewall_exclude_from_trackercontrol),
+                getString(R.string.firewall_exclude_from_trackercontrol_explanation),
                 shownState == AppProtectionState.BYPASSED, true));
         return Collections.unmodifiableList(options);
     }
