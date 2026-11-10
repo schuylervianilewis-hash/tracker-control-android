@@ -56,6 +56,7 @@ import eu.faircode.netguard.Rule;
 import eu.faircode.netguard.ServiceSinkhole;
 import eu.faircode.netguard.Util;
 import net.kollnig.missioncontrol.Common;
+import net.kollnig.missioncontrol.DetailsActivity;
 import net.kollnig.missioncontrol.R;
 import net.kollnig.missioncontrol.data.AppProtectionState;
 import net.kollnig.missioncontrol.data.AppProtectionWriter;
@@ -168,6 +169,8 @@ public class FirewallFragment extends Fragment {
     public void onPause() {
         super.onPause();
         expiryHandler.removeCallbacks(expiryRunnable);
+        if (isAdded())
+            DetailsActivity.savePrefs(requireContext());
     }
 
     @Override
@@ -713,8 +716,12 @@ public class FirewallFragment extends Fragment {
         TrackerBlocklist blocklist = TrackerBlocklist.getInstance(requireContext());
         if (checked)
             blocklist.block(rule.uid, category.getCategoryName());
-        else
+        else {
             blocklist.unblock(rule.uid, category.getCategoryName());
+            Toast.makeText(requireContext(), R.string.category_unblocked,
+                    Toast.LENGTH_SHORT).show();
+        }
+        blocklist.saveSettings(requireContext());
         renderProtectionPanel();
     }
 
@@ -747,6 +754,7 @@ public class FirewallFragment extends Fragment {
             blocklist.unblock(rule.uid, tracker);
         else
             blocklist.block(rule.uid, tracker);
+        blocklist.saveSettings(requireContext());
         renderProtectionPanel();
     }
 
