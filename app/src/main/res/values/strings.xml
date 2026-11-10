@@ -910,7 +910,7 @@ Sincerely,\n\n]]></string>
     <string name="dns_changer_status_doh">Secure DNS (DoH) is enabled. It takes precedence over these IP resolvers for VPN-routed DNS while WireGuard is off.</string>
     <string name="dns_changer_status_wireguard_profile">Using DNS from the active WireGuard profile: %1$s</string>
     <string name="dns_changer_status_wireguard_fallback">The WireGuard profile has no usable DNS address. The engine will use its Quad9 public fallback.</string>
-    <string name="dns_changer_status_wireguard_selected">WireGuard is active. The DoH proxy is paused and the selected DNS mode is used for VPN-routed DNS, subject to the profile's AllowedIPs.</string>
+    <string name="dns_changer_status_wireguard_selected">WireGuard is active. The DoH proxy is paused and the selected DNS mode is used for VPN-routed DNS, subject to the profile\'s AllowedIPs.</string>
     <string name="dns_changer_status_wireguard_off">WireGuard is off. Network-provided DNS is used now; profile DNS will apply when WireGuard is enabled.</string>
     <string name="dns_changer_status_normal">The selected DNS mode is used for apps routed through the Vianshield VPN.</string>
     <string name="dns_mode_automatic">Automatic</string>
@@ -930,7 +930,7 @@ Sincerely,\n\n]]></string>
     <string name="dns_custom_save">Save custom DNS</string>
     <string name="dns_changer_saved">DNS setting saved</string>
     <string name="dns_changer_standard_note">These provider choices use standard DNS IP addresses, not encrypted DNS. Secure DNS (DoH) remains a separate setting.</string>
-    <string name="dns_changer_direct_note">Apps configured for Direct or Bypass continue to use Android's network DNS and do not use this selection.</string>
-    <string name="dns_changer_wireguard_warning">With WireGuard, the selected resolver must be covered by the profile's AllowedIPs to travel through the WireGuard peer. The imported profile is never modified by this screen.</string>
+    <string name="dns_changer_direct_note">Apps configured for Direct or Bypass continue to use Android\'s network DNS and do not use this selection.</string>
+    <string name="dns_changer_wireguard_warning">With WireGuard, the selected resolver must be covered by the profile\'s AllowedIPs to travel through the WireGuard peer. The imported profile is never modified by this screen.</string>
 
 </resources>
