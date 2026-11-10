@@ -1032,12 +1032,9 @@ public class FirewallFragment extends Fragment {
         }
 
         private void stylePolicyButton(MaterialButton button, boolean selected) {
-            int primary = MaterialColors.getColor(button,
-                    com.google.android.material.R.attr.colorPrimary);
-            int surface = MaterialColors.getColor(button,
-                    com.google.android.material.R.attr.colorSurfaceVariant);
-            int onSurface = MaterialColors.getColor(button,
-                    com.google.android.material.R.attr.colorOnSurface);
+            int primary = ContextCompat.getColor(button.getContext(), R.color.colorPrimary);
+            int surface = ContextCompat.getColor(button.getContext(), R.color.vian_surface_variant);
+            int onSurface = ContextCompat.getColor(button.getContext(), R.color.vian_text_primary);
             button.setSelected(selected);
             button.setBackgroundTintList(ColorStateList.valueOf(selected ? primary : surface));
             button.setTextColor(selected ? Color.WHITE : onSurface);
