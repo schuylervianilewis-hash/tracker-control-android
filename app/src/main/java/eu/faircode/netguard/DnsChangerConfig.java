@@ -271,7 +271,7 @@ public final class DnsChangerConfig {
             // Preserve the pre-existing WG DNS acceptance rules exactly:
             // only loopback and unspecified addresses are filtered here.
             if (address == null || address.isLoopbackAddress() ||
-                    address.isAnyLocalAddress() || result.contains(address))
+                    address.isAnyLocalAddress())
                 continue;
             result.add(address);
         }

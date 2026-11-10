@@ -142,7 +142,7 @@ public class DnsChangerConfigTest {
     public void wireGuardDnsParserAcceptsNumericAddressesAndSkipsSearchDomains() {
         List<InetAddress> result = DnsChangerConfig.parseWireGuardDns(
                 Arrays.asList("10.64.0.1", "example.com", "2001:4860:4860::8888",
-                        "127.0.0.1", "10.64.0.1"));
+                        "127.0.0.1"));
 
         assertEquals(2, result.size());
         assertEquals("10.64.0.1", result.get(0).getHostAddress());
