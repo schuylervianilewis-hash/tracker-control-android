@@ -113,8 +113,10 @@ public final class DnsChangerConfig {
             return result;
         try {
             WgConfig config = WgConfigParser.INSTANCE.parse(prefs.getString("wg_config", ""));
+            boolean ipv6Enabled = prefs.getBoolean("ip6", true);
             for (InetAddress address : parseWireGuardDns(config.getDns()))
-                result.add(address.getHostAddress());
+                if (ipv6Enabled || address instanceof Inet4Address)
+                    result.add(address.getHostAddress());
         } catch (Throwable ignored) {
             // The WireGuard screen already owns config validation and error UI.
         }

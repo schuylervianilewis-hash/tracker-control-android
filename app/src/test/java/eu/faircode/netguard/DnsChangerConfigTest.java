@@ -169,6 +169,12 @@ public class DnsChangerConfigTest {
         assertEquals("fe80:0:0:0:0:0:0:1", status.get(0));
         assertEquals("224.0.0.1", status.get(1));
         assertEquals("10.64.0.1", status.get(2));
+
+        prefs.edit().putBoolean("ip6", false).commit();
+        List<String> ipv4OnlyStatus = DnsChangerConfig.getWireGuardProfileDns(prefs);
+        assertEquals(2, ipv4OnlyStatus.size());
+        assertEquals("224.0.0.1", ipv4OnlyStatus.get(0));
+        assertEquals("10.64.0.1", ipv4OnlyStatus.get(1));
     }
 
     @Test
