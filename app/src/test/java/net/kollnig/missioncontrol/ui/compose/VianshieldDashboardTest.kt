@@ -17,7 +17,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35], qualifiers = "w320dp-h640dp")
+@Config(sdk = [35], qualifiers = "w320dp-h480dp")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class VianshieldDashboardTest {
     @get:Rule
