@@ -374,7 +374,7 @@ public class FirewallFragment extends Fragment {
         if (rule == null || !rule.pkg || !rule.internet
                 || TextUtils.equals(rule.packageName, requireContext().getPackageName()))
             return;
-        if (ACTION_VPN.equals(action) && !isRemoteVpnAvailable()) {
+        if (ACTION_VPN.equals(action) && !remoteVpnAvailable) {
             Toast.makeText(requireContext(), R.string.app_route_unavailable_no_vpn,
                     Toast.LENGTH_LONG).show();
             return;
