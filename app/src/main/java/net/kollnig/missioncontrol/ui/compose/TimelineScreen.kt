@@ -13,6 +13,7 @@ import android.text.format.DateUtils
 import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,9 +65,11 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.viewinterop.AndroidView
@@ -162,7 +165,9 @@ data class TimelineScreenModel(
     val emptyState: TimelineEmptyState?,
     val showHint: Boolean,
     val rows: List<TimelineRow>,
-    val isRefreshing: Boolean = false
+    val isRefreshing: Boolean = false,
+    val protectionEnabled: Boolean = false,
+    val featurePageTitle: String? = null
 ) {
     companion object {
         @JvmStatic
@@ -173,6 +178,11 @@ data class TimelineScreenModel(
             rows = emptyList(),
             isRefreshing = false
         )
+
+        /** Initial model seeded from ActivityMain's persisted protection preference. */
+        @JvmStatic
+        fun initial(protectionEnabled: Boolean): TimelineScreenModel =
+            initial().copy(protectionEnabled = protectionEnabled)
     }
 }
 
@@ -187,6 +197,15 @@ interface TimelineScreenCallbacks {
 
     /** Pull-to-refresh gesture; rebuilds the timeline and the insights card. */
     fun onRefresh()
+
+    /** Request a protection-state change through ActivityMain's existing VPN flow. */
+    fun onProtectionToggle(enabled: Boolean)
+
+    /** Open a separate, intentionally empty feature destination inside Main. */
+    fun onOpenFeaturePage(title: String)
+
+    /** Return from a feature destination to the retained Main dashboard and Timeline. */
+    fun onCloseFeaturePage()
 }
 
 /** Handle used by Java to update Compose while retaining controller lifecycle ownership. */
@@ -231,6 +250,23 @@ class TimelineScreenController internal constructor(
         state.value = state.value.copy(showHint = false)
     }
 
+    fun updateProtectionEnabled(enabled: Boolean) {
+        if (!valid) return
+        state.value = state.value.copy(protectionEnabled = enabled)
+    }
+
+    fun openFeaturePage(title: String) {
+        if (!valid) return
+        state.value = state.value.copy(featurePageTitle = title)
+    }
+
+    fun closeFeaturePage(): Boolean {
+        if (!valid || state.value.featurePageTitle == null)
+            return false
+        state.value = state.value.copy(featurePageTitle = null)
+        return true
+    }
+
     fun invalidate() {
         valid = false
     }
@@ -271,14 +307,22 @@ internal fun TimelineScreenContent(
 ) {
     val iconCache = remember { mutableMapOf<String, Drawable?>() }
     CompositionLocalProvider(LocalAppIconCache provides iconCache) {
-        PullToRefreshBox(
-            isRefreshing = model.isRefreshing,
-            onRefresh = callbacks::onRefresh,
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            TimelineList(model, callbacks)
+        Box(modifier = Modifier.fillMaxSize()) {
+            PullToRefreshBox(
+                isRefreshing = model.isRefreshing,
+                onRefresh = callbacks::onRefresh,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                TimelineList(model, callbacks)
+            }
+
+            // Keep the Timeline mounted underneath this destination so its scroll
+            // position, refresh state and loaded data survive Back navigation.
+            model.featurePageTitle?.let { title ->
+                FeatureDestinationPage(title, callbacks)
+            }
         }
     }
 }
@@ -294,6 +338,24 @@ private fun TimelineList(
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
+        item(key = "vianshield-dashboard") {
+            VianshieldDashboard(model.protectionEnabled, callbacks)
+        }
+
+        item(key = "timeline-heading") {
+            Text(
+                text = stringResource(R.string.dashboard_timeline_heading),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .semantics { heading() }
+                    .testTag("timeline-section-heading"),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
         item(key = "insights-summary") {
             TimelineInsightsCard(model.insights, callbacks)
         }
@@ -550,6 +612,213 @@ private fun TimelineInsightsCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Vianshield's Main dashboard. The protection control and four feature
+ * destinations live in this same LazyColumn as the Timeline, not in a nested
+ * scrolling container.
+ */
+@Composable
+private fun VianshieldDashboard(
+    protectionEnabled: Boolean,
+    callbacks: TimelineScreenCallbacks
+) {
+    val protectionLabel = stringResource(
+        if (protectionEnabled) R.string.dashboard_protection_on
+        else R.string.dashboard_protection_off
+    )
+    val protectionDescription = stringResource(
+        if (protectionEnabled) R.string.dashboard_protection_on_description
+        else R.string.dashboard_protection_off_description
+    )
+    val protectionBackground = if (protectionEnabled)
+        MaterialTheme.colorScheme.primary
+    else
+        MaterialTheme.colorScheme.surfaceVariant
+    val protectionForeground = if (protectionEnabled)
+        MaterialTheme.colorScheme.onPrimary
+    else
+        MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(136.dp)
+                .clip(CircleShape)
+                .background(protectionBackground)
+                .clickable(
+                    role = Role.Button,
+                    onClick = { callbacks.onProtectionToggle(!protectionEnabled) }
+                )
+                .semantics(mergeDescendants = true) {
+                    contentDescription = protectionDescription
+                }
+                .testTag("dashboard-protection-toggle"),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "◈",
+                    color = protectionForeground,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = protectionLabel,
+                    color = protectionForeground,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DashboardFeatureCard(
+                    title = stringResource(R.string.dashboard_speed_throttling),
+                    symbol = "↕",
+                    testTag = "dashboard-card-speed-throttling",
+                    modifier = Modifier.weight(1f),
+                    onClick = { callbacks.onOpenFeaturePage(title = stringResource(R.string.dashboard_speed_throttling)) }
+                )
+                DashboardFeatureCard(
+                    title = stringResource(R.string.dashboard_dns_changer),
+                    symbol = "⌁",
+                    testTag = "dashboard-card-dns-changer",
+                    modifier = Modifier.weight(1f),
+                    onClick = { callbacks.onOpenFeaturePage(title = stringResource(R.string.dashboard_dns_changer)) }
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                DashboardFeatureCard(
+                    title = stringResource(R.string.dashboard_ad_filter),
+                    symbol = "✦",
+                    testTag = "dashboard-card-ad-filter",
+                    modifier = Modifier.weight(1f),
+                    onClick = { callbacks.onOpenFeaturePage(title = stringResource(R.string.dashboard_ad_filter)) }
+                )
+                DashboardFeatureCard(
+                    title = stringResource(R.string.dashboard_blocked_domains),
+                    symbol = "⊘",
+                    testTag = "dashboard-card-blocked-domains",
+                    modifier = Modifier.weight(1f),
+                    onClick = { callbacks.onOpenFeaturePage(title = stringResource(R.string.dashboard_blocked_domains)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardFeatureCard(
+    title: String,
+    symbol: String,
+    testTag: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .height(76.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .testTag(testTag),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 6.dp, vertical = 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = symbol,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = title,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelLarge,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/** Empty by design for Phase 6: a title and Back affordance, with no fake controls. */
+@Composable
+private fun FeatureDestinationPage(
+    title: String,
+    callbacks: TimelineScreenCallbacks
+) {
+    val backDescription = stringResource(R.string.dashboard_back)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
+            .testTag("dashboard-feature-page")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = callbacks::onCloseFeaturePage,
+                modifier = Modifier
+                    .testTag("dashboard-feature-back")
+                    .semantics { contentDescription = backDescription }
+            ) {
+                Text(
+                    text = "←",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Text(
+                text = title,
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .semantics { heading() },
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
         }
     }
 }
@@ -962,4 +1231,7 @@ private object PreviewTimelineCallbacks : TimelineScreenCallbacks {
     override fun onShareInsights() = Unit
     override fun onDismissHint() = Unit
     override fun onRefresh() = Unit
+    override fun onProtectionToggle(enabled: Boolean) = Unit
+    override fun onOpenFeaturePage(title: String) = Unit
+    override fun onCloseFeaturePage() = Unit
 }

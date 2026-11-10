@@ -469,6 +469,12 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                     getSupportFragmentManager().popBackStack();
                     return;
                 }
+                if (currentTab == R.id.nav_timeline) {
+                    TimelineFragment timeline = (TimelineFragment) getSupportFragmentManager()
+                            .findFragmentById(R.id.timelineContainer);
+                    if (timeline != null && timeline.closeFeaturePage())
+                        return;
+                }
                 if (currentTab != R.id.nav_timeline && bottomNav != null) {
                     bottomNav.setSelectedItemId(R.id.nav_timeline);
                     return;
@@ -1028,10 +1034,16 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
             TextView tvDisabled = findViewById(R.id.tvDisabled);
             tvDisabled.setVisibility(enabled ? View.GONE : View.VISIBLE);
 
-            // Check switch state
-            MaterialSwitch swEnabled = getSupportActionBar().getCustomView().findViewById(R.id.swEnabled);
-            if (swEnabled.isChecked() != enabled)
+            // Keep the hidden switch synchronized so all enable/disable paths
+            // continue to share its original VPN lifecycle listener.
+            if (swEnabled != null && swEnabled.isChecked() != enabled)
                 swEnabled.setChecked(enabled);
+
+            // The Main dashboard reflects the same persisted protection state.
+            TimelineFragment timeline = (TimelineFragment) getSupportFragmentManager()
+                    .findFragmentById(R.id.timelineContainer);
+            if (timeline != null)
+                timeline.updateProtectionEnabled(enabled);
 
             updatePrivateDnsBypassBanner();
 
@@ -1408,6 +1420,20 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         // which calls onPrepareOptionsMenu the next time it is opened, so
         // their visibility updates lazily — and we avoid rebuilding the
         // SearchView mid-expand, which would also drop keyboard focus.
+    }
+
+    /**
+     * Entry point for the Main dashboard's protection button.
+     *
+     * Keep the hidden toolbar switch as the single dispatcher for the existing
+     * VPN-consent, always-on/lockdown, preference rollback and service lifecycle
+     * logic. This avoids creating a second protection implementation.
+     */
+    public void setProtectionEnabledFromDashboard(boolean enabled) {
+        if (!running || swEnabled == null)
+            return;
+        if (swEnabled.isChecked() != enabled)
+            swEnabled.setChecked(enabled);
     }
 
     private void ensureVpnFragment() {

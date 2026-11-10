@@ -41,6 +41,7 @@ import net.kollnig.missioncontrol.ui.compose.TimelineEmptyState;
 import net.kollnig.missioncontrol.ui.compose.TimelineScreen;
 import net.kollnig.missioncontrol.ui.compose.TimelineScreenCallbacks;
 import net.kollnig.missioncontrol.ui.compose.TimelineScreenController;
+import net.kollnig.missioncontrol.ui.compose.TimelineScreenModel;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import eu.faircode.netguard.ActivityMain;
 import eu.faircode.netguard.DatabaseHelper;
 import eu.faircode.netguard.Util;
 
@@ -116,8 +118,12 @@ public class TimelineFragment extends Fragment {
 
         final int generation = ++viewGeneration;
         composeView = (ComposeView) view;
+        boolean protectionEnabled = PreferenceManager
+                .getDefaultSharedPreferences(requireContext())
+                .getBoolean("enabled", false);
         screenController = TimelineScreen.install(
                 composeView,
+                TimelineScreenModel.initial(protectionEnabled),
                 new TimelineScreenCallbacks() {
                     @Override
                     public void onEntryClick(int uid, String appName, String packageName) {
@@ -167,6 +173,24 @@ public class TimelineFragment extends Fragment {
                         screenController.setRefreshing(true);
                         refreshAll();
                     }
+
+                    @Override
+                    public void onProtectionToggle(boolean enabled) {
+                        if (isAdded() && getActivity() instanceof ActivityMain)
+                            ((ActivityMain) getActivity()).setProtectionEnabledFromDashboard(enabled);
+                    }
+
+                    @Override
+                    public void onOpenFeaturePage(String title) {
+                        if (isCurrentView(generation) && screenController != null)
+                            screenController.openFeaturePage(title);
+                    }
+
+                    @Override
+                    public void onCloseFeaturePage() {
+                        if (screenController != null)
+                            screenController.closeFeaturePage();
+                    }
                 });
         lifecycleExecutor = Executors.newSingleThreadExecutor();
     }
@@ -204,6 +228,17 @@ public class TimelineFragment extends Fragment {
         composeView = null;
         viewGeneration++;
         super.onDestroyView();
+    }
+
+    /** Reflect the Activity's persisted protection state in the Main dashboard. */
+    public void updateProtectionEnabled(boolean enabled) {
+        if (screenController != null)
+            screenController.updateProtectionEnabled(enabled);
+    }
+
+    /** Close an open dashboard destination; return false when Main is already showing. */
+    public boolean closeFeaturePage() {
+        return screenController != null && screenController.closeFeaturePage();
     }
 
     private boolean isCurrentView(int generation) {

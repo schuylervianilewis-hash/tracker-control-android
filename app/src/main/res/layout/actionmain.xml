@@ -39,7 +39,8 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
         android:contentDescription="@string/switch_tracker_control_description"
-        android:saveEnabled="false" />
+        android:saveEnabled="false"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/tvTitle"
