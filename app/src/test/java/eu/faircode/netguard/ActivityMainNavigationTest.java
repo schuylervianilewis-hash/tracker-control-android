@@ -47,6 +47,8 @@ public class ActivityMainNavigationTest {
         // Avoid creating the VPN fragment in this layout-routing test. The VPN
         // destination remains the existing, lazily-created fragment in production.
         setField("vpnFragmentRequested", true);
+        // This test exercises container visibility only, not FragmentManager attachment.
+        setField("firewallFragmentRequested", true);
     }
 
     @Test
@@ -108,9 +110,7 @@ public class ActivityMainNavigationTest {
         assertTab(R.id.nav_apps, View.GONE, View.VISIBLE, View.GONE, View.GONE, View.GONE);
         assertTab(R.id.nav_settings, View.GONE, View.GONE, View.GONE, View.GONE, View.VISIBLE);
 
-        ViewGroup firewall = activity.findViewById(R.id.firewallContainer);
-        assertEquals("Firewall is intentionally an empty placeholder", 0, firewall.getChildCount());
-
+        assertNotNull(activity.findViewById(R.id.firewallContainer));
         assertNotNull(activity.findViewById(R.id.settingsContainer));
     }
 
