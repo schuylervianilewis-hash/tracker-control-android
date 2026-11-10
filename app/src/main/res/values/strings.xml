@@ -897,7 +897,7 @@ Sincerely,\n\n]]></string>
 
     <string name="firewall_self_app_note">Firewall service protected</string>
     <string name="firewall_exclude_from_trackercontrol">Exclude from TrackerControl</string>
-    <string name="firewall_exclude_from_trackercontrol_explanation">Stops this app from passing through TrackerControl's VPN/TUN, so local firewall and tracker filtering will not apply. This is different from Firewall Bypass.</string>
+    <string name="firewall_exclude_from_trackercontrol_explanation">Stops this app from passing through the TrackerControl VPN/TUN, so local firewall and tracker filtering will not apply. This is different from Firewall Bypass.</string>
     <string name="firewall_paused_state_label">Temporarily paused</string>
     <string name="firewall_paused_state_explanation">TrackerControl protection is temporarily paused for this app. Resume protection to restore its previous state.</string>
 </resources>
