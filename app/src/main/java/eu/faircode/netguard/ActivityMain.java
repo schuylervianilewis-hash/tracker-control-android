@@ -1427,7 +1427,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         boolean settings = itemId == R.id.nav_settings;
         int previousTab = currentTab;
         // Preserve Tracker's original search lifecycle: leaving either app-list
-        // tab collapses the shared SearchView, while each tab keeps its own query.
+        // tab collapses the shared SearchView and clears only that list's filter.
         boolean leavingTracker = previousTab == R.id.nav_apps && !tracker;
         boolean leavingFirewall = previousTab == R.id.nav_firewall && !firewall;
         if ((leavingTracker || leavingFirewall) && menuSearch != null
