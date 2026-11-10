@@ -890,4 +890,9 @@ Sincerely,\n\n]]></string>
     <string name="firewall_global_action_message">Apply this policy to all listed user apps that have Internet access? System apps and this app itself are left unchanged.</string>
     <string name="firewall_excluded_status">Excluded from TrackerControl</string>
 
+
+    <string name="firewall_expand_app">Expand %1$s management</string>
+    <string name="firewall_collapse_app">Collapse %1$s management</string>
+    <string name="firewall_action_for_app">%1$s for %2$s</string>
+
 </resources>

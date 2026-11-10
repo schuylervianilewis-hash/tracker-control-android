@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import eu.faircode.netguard.GlideApp;
 import eu.faircode.netguard.Rule;
 import eu.faircode.netguard.ServiceSinkhole;
 import eu.faircode.netguard.Util;
@@ -907,11 +908,12 @@ public class FirewallFragment extends Fragment {
             holder.status.setText(statusLabel(rule));
             holder.status.setTextColor(MaterialColors.getColor(holder.status,
                     com.google.android.material.R.attr.colorOnSurfaceVariant));
-            try {
-                holder.icon.setImageDrawable(context.getPackageManager()
-                        .getApplicationIcon(rule.packageName));
-            } catch (Throwable ex) {
+            if (rule.icon <= 0) {
                 holder.icon.setImageResource(android.R.drawable.sym_def_app_icon);
+            } else {
+                Uri iconUri = Uri.parse("android.resource://" + rule.packageName + "/" + rule.icon);
+                GlideApp.with(context).load(iconUri)
+                        .override(dp(40), dp(40)).into(holder.icon);
             }
             boolean active = rule.apply;
             boolean blocked = active
@@ -922,10 +924,19 @@ public class FirewallFragment extends Fragment {
             stylePolicyButton(holder.vpn, vpn);
             stylePolicyButton(holder.bypass, bypass);
 
-            holder.icon.setContentDescription(context.getString(
-                    R.string.app_name) + ": " + rule.name);
+            String expandDescription = context.getString(
+                    isExpanded(rule) ? R.string.firewall_collapse_app
+                            : R.string.firewall_expand_app, rule.name);
+            holder.icon.setContentDescription(expandDescription);
+            holder.name.setContentDescription(expandDescription);
             holder.icon.setOnClickListener(view -> toggleExpanded(rule));
             holder.name.setOnClickListener(view -> toggleExpanded(rule));
+            holder.block.setContentDescription(context.getString(
+                    R.string.firewall_action_for_app, context.getString(R.string.firewall_block), rule.name));
+            holder.vpn.setContentDescription(context.getString(
+                    R.string.firewall_action_for_app, context.getString(R.string.firewall_vpn), rule.name));
+            holder.bypass.setContentDescription(context.getString(
+                    R.string.firewall_action_for_app, context.getString(R.string.firewall_bypass), rule.name));
             holder.header.setOnClickListener(null);
             holder.block.setOnClickListener(view -> setPolicy(rule, ACTION_BLOCK));
             holder.vpn.setOnClickListener(view -> setPolicy(rule, ACTION_VPN));
@@ -978,6 +989,7 @@ public class FirewallFragment extends Fragment {
                     com.google.android.material.R.attr.colorSurfaceVariant);
             int onSurface = MaterialColors.getColor(button,
                     com.google.android.material.R.attr.colorOnSurface);
+            button.setSelected(selected);
             button.setBackgroundTintList(ColorStateList.valueOf(selected ? primary : surface));
             button.setTextColor(selected ? Color.WHITE : onSurface);
             button.setStrokeWidth(selected ? 0 : dp(1));
