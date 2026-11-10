@@ -88,6 +88,8 @@ import net.kollnig.missioncontrol.Common;
 import net.kollnig.missioncontrol.LocalNetworkAccess;
 import net.kollnig.missioncontrol.R;
 import net.kollnig.missioncontrol.TimelineFragment;
+import net.kollnig.missioncontrol.details.FirewallFragment;
+import net.kollnig.missioncontrol.data.FirewallPolicyLogic;
 import net.kollnig.missioncontrol.data.Tracker;
 import net.kollnig.missioncontrol.data.TrackerList;
 import net.kollnig.missioncontrol.vpn.VpnFragment;

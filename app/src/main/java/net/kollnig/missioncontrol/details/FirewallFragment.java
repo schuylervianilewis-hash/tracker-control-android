@@ -142,7 +142,7 @@ public class FirewallFragment extends Fragment {
         recyclerView.setItemViewCacheSize(6);
         adapter = new FirewallAdapter();
         recyclerView.setAdapter(adapter);
-        swipeRefresh.addView(recyclerView, new SwipeRefreshLayout.LayoutParams(
+        swipeRefresh.addView(recyclerView, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         swipeRefresh.setOnRefreshListener(this::refresh);
         LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(
@@ -880,7 +880,8 @@ public class FirewallFragment extends Fragment {
             Context context = holder.itemView.getContext();
             holder.name.setText(rule.name);
             holder.name.setTextColor(rule.system
-                    ? ContextCompat.getColor(context, R.color.colorOff)
+                    ? MaterialColors.getColor(holder.name,
+                            com.google.android.material.R.attr.colorOnSurfaceVariant)
                     : MaterialColors.getColor(holder.name,
                             com.google.android.material.R.attr.colorOnSurface));
             holder.status.setText(statusLabel(rule));
