@@ -52,6 +52,31 @@ public final class DnsChangerConfig {
         return MODE_AUTOMATIC;
     }
 
+
+    /**
+     * Keep the old Advanced Settings fields and the DNS Changer selector in
+     * sync without allowing cleared legacy fields to erase another selection.
+     */
+    public static void syncLegacyDnsSettings(SharedPreferences prefs) {
+        boolean hasCustomDns = hasText(prefs.getString("dns", null)) ||
+                hasText(prefs.getString("dns2", null));
+        String currentMode;
+        try {
+            currentMode = prefs.getString(PREF_DNS_MODE, null);
+        } catch (ClassCastException ignored) {
+            currentMode = null;
+        }
+
+        SharedPreferences.Editor editor = prefs.edit();
+        if (hasCustomDns) {
+            editor.putString(PREF_DNS_MODE, MODE_CUSTOM);
+            editor.apply();
+        } else if (MODE_CUSTOM.equals(currentMode)) {
+            editor.remove(PREF_DNS_MODE);
+            editor.apply();
+        }
+    }
+
     public static boolean isKnownMode(String mode) {
         return MODE_AUTOMATIC.equals(mode) ||
                 MODE_CLOUDFLARE.equals(mode) ||

@@ -115,6 +115,30 @@ public class DnsChangerConfigTest {
     }
 
     @Test
+    public void advancedDnsFieldsPreserveSelectedProviderWhenCleared() {
+        prefs.edit().putString(DnsChangerConfig.PREF_DNS_MODE,
+                DnsChangerConfig.MODE_CLOUDFLARE).commit();
+
+        DnsChangerConfig.syncLegacyDnsSettings(prefs);
+
+        assertEquals(DnsChangerConfig.MODE_CLOUDFLARE,
+                prefs.getString(DnsChangerConfig.PREF_DNS_MODE, null));
+    }
+
+    @Test
+    public void advancedDnsFieldsSetAndClearCustomMode() {
+        prefs.edit().putString("dns", "192.0.2.53").commit();
+
+        DnsChangerConfig.syncLegacyDnsSettings(prefs);
+        assertEquals(DnsChangerConfig.MODE_CUSTOM,
+                prefs.getString(DnsChangerConfig.PREF_DNS_MODE, null));
+
+        prefs.edit().remove("dns").remove("dns2").commit();
+        DnsChangerConfig.syncLegacyDnsSettings(prefs);
+        assertFalse(prefs.contains(DnsChangerConfig.PREF_DNS_MODE));
+    }
+
+    @Test
     public void invalidStoredModeFallsBackToAutomatic() {
         prefs.edit().putString(DnsChangerConfig.PREF_DNS_MODE, "not-a-mode").commit();
         assertEquals(DnsChangerConfig.MODE_AUTOMATIC,
