@@ -49,6 +49,9 @@
                     android:id="@+id/menu_sort_name"
                     android:title="@string/menu_sort_name"/>
                 <item
+                    android:id="@+id/menu_sort_install_date"
+                    android:title="@string/firewall_sort_install_date"/>
+                <item
                     android:id="@+id/menu_sort_by_latest_detected_tracker"
                     android:title="@string/menu_sort_by_latest_detected_tracker"/>
                 <item

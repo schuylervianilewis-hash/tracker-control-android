@@ -875,4 +875,19 @@ Sincerely,\n\n]]></string>
     <string name="log_screen_on">Screen on</string>
     <string name="app_name" translatable="false">VianShield</string>
     <string name="app_name_short" translatable="false">VianShield</string>
+
+    <string name="firewall_block">Block</string>
+    <string name="firewall_vpn">VPN</string>
+    <string name="firewall_bypass">Bypass</string>
+    <string name="firewall_block_all">Block All</string>
+    <string name="firewall_vpn_all">VPN All</string>
+    <string name="firewall_bypass_all">Bypass All</string>
+    <string name="firewall_on_screen_only">On-screen only</string>
+    <string name="firewall_speed_exemption">Speed throttling exemption</string>
+    <string name="firewall_coming_later">Coming later</string>
+    <string name="firewall_sort_install_date">Install date (newest first)</string>
+    <string name="firewall_excluded_note">Important: “Exclude from TrackerControl” removes this app from local monitoring and filtering. Firewall Bypass is different: it avoids remote WireGuard while keeping TrackerControl enforcement active.</string>
+    <string name="firewall_global_action_message">Apply this policy to all listed user apps that have Internet access? System apps and this app itself are left unchanged.</string>
+    <string name="firewall_excluded_status">Excluded from TrackerControl</string>
+
 </resources>

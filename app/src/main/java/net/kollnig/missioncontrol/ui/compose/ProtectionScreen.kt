@@ -149,14 +149,36 @@ object ProtectionScreen {
         composeView: ComposeView,
         initialModel: ProtectionScreenModel,
         callbacks: ProtectionScreenCallbacks
+    ): ProtectionScreenController = installContent(
+        composeView, initialModel, callbacks,
+        ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed, null, false
+    )
+
+    /** Inline RecyclerView rows must dispose their composition when recycled. */
+    @JvmStatic
+    fun installInline(
+        composeView: ComposeView,
+        initialModel: ProtectionScreenModel,
+        callbacks: ProtectionScreenCallbacks,
+        footerNote: String
+    ): ProtectionScreenController = installContent(
+        composeView, initialModel, callbacks,
+        ViewCompositionStrategy.DisposeOnDetachedFromWindow, footerNote, true
+    )
+
+    private fun installContent(
+        composeView: ComposeView,
+        initialModel: ProtectionScreenModel,
+        callbacks: ProtectionScreenCallbacks,
+        strategy: ViewCompositionStrategy,
+        footerNote: String?,
+        showFirewallPlaceholders: Boolean
     ): ProtectionScreenController {
         val state = mutableStateOf(initialModel)
-        composeView.setViewCompositionStrategy(
-            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
-        )
+        composeView.setViewCompositionStrategy(strategy)
         composeView.setContent {
             TrackerControlTheme {
-                ProtectionScreenContent(state.value, callbacks)
+                ProtectionScreenContent(state.value, callbacks, footerNote, showFirewallPlaceholders)
             }
         }
         return ProtectionScreenController(state)
@@ -164,9 +186,11 @@ object ProtectionScreen {
 }
 
 @Composable
-internal fun ProtectionScreenContent(
+fun ProtectionScreenContent(
     model: ProtectionScreenModel,
-    callbacks: ProtectionScreenCallbacks
+    callbacks: ProtectionScreenCallbacks,
+    footerNote: String? = null,
+    showFirewallPlaceholders: Boolean = false
 ) {
     LazyColumn(
         modifier = Modifier
@@ -266,7 +290,37 @@ internal fun ProtectionScreenContent(
                 }
             }
         }
+
+        if (showFirewallPlaceholders) {
+            item(key = "firewall-on-screen-placeholder") {
+                PlaceholderRow(
+                    stringResource(R.string.firewall_on_screen_only),
+                    stringResource(R.string.firewall_coming_later)
+                )
+            }
+            item(key = "firewall-speed-exemption-placeholder") {
+                PlaceholderRow(
+                    stringResource(R.string.firewall_speed_exemption),
+                    stringResource(R.string.firewall_coming_later)
+                )
+            }
+        }
+        footerNote?.let { note ->
+            item(key = "protection-footer-note") { EmptyMessage(note) }
+        }
     }
+}
+
+@Composable
+private fun PlaceholderRow(title: String, status: String) {
+    ListItem(
+        headlineContent = { Text(title, fontWeight = FontWeight.Bold) },
+        supportingContent = { Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(DISABLED_ROW_ALPHA)
+            .semantics { contentDescription = "$title, $status" }
+    )
 }
 
 @Composable

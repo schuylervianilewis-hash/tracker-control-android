@@ -128,6 +128,8 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
     private View vpnContainer;
     private View firewallContainer;
     private View settingsContainer;
+    private FirewallFragment firewallFragment;
+    private boolean firewallFragmentRequested = false;
     private int currentTab = R.id.nav_timeline;
     private boolean vpnFragmentRequested = false;
     private AlertDialog dialogVpn = null;
@@ -1165,7 +1167,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 // SearchView finishes expanding (and grabs focus + opens
                 // the keyboard) on the current frame; otherwise the layout
                 // toggle in selectTab pre-empts focus before the IME shows.
-                if (currentTab != R.id.nav_apps && bottomNav != null) {
+                if (currentTab != R.id.nav_apps && currentTab != R.id.nav_firewall && bottomNav != null) {
                     final BottomNavigationView nav = bottomNav;
                     nav.post(() -> nav.setSelectedItemId(R.id.nav_apps));
                 }
@@ -1186,8 +1188,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
             public boolean onQueryTextSubmit(String query) {
                 if (searchRunnable != null)
                     searchHandler.removeCallbacks(searchRunnable);
-                if (adapter != null)
-                    adapter.getFilter().filter(query);
+                filterCurrentList(query);
                 searchView.clearFocus();
                 return true;
             }
@@ -1199,8 +1200,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 searchRunnable = new Runnable() {
                     @Override
                     public void run() {
-                        if (adapter != null)
-                            adapter.getFilter().filter(newText);
+                        filterCurrentList(newText);
                     }
                 };
                 searchHandler.postDelayed(searchRunnable, SEARCH_DEBOUNCE_MS);
@@ -1213,8 +1213,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 Intent intent = getIntent();
                 intent.removeExtra(EXTRA_SEARCH);
 
-                if (adapter != null)
-                    adapter.getFilter().filter(null);
+                filterCurrentList(null);
                 return true;
             }
         });
@@ -1239,13 +1238,29 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
     public boolean onPrepareOptionsMenu(Menu menu) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
-        // Filter/sort are list-specific; hide them outside Tracker. Search stays
-        // visible — clicking it on another tab jumps to Tracker.
+        // Tracker keeps its original filters/sorts. Firewall has independent
+        // name/install-date sorting and uses the same toolbar SearchView.
         MenuItem filterItem = menu.findItem(R.id.menu_filter);
         MenuItem sortItem = menu.findItem(R.id.menu_sort);
         boolean showingApps = currentTab == R.id.nav_apps;
+        boolean showingFirewall = currentTab == R.id.nav_firewall;
         if (filterItem != null) filterItem.setVisible(showingApps);
-        if (sortItem != null) sortItem.setVisible(showingApps);
+        if (sortItem != null) sortItem.setVisible(showingApps || showingFirewall);
+        MenuItem installDateSort = menu.findItem(R.id.menu_sort_install_date);
+        if (installDateSort != null)
+            installDateSort.setVisible(showingFirewall);
+        menu.findItem(R.id.menu_sort_trackers_week).setVisible(showingApps);
+        menu.findItem(R.id.menu_sort_trackers_all).setVisible(showingApps);
+        menu.findItem(R.id.menu_sort_by_latest_detected_tracker).setVisible(showingApps);
+        menu.findItem(R.id.menu_sort_uid).setVisible(showingApps);
+        if (showingFirewall) {
+            boolean byDate = firewallFragment != null
+                    && FirewallPolicyLogic.SORT_INSTALL_DATE.equals(firewallFragment.getSortMode());
+            menu.findItem(R.id.menu_sort_name).setChecked(!byDate);
+            if (installDateSort != null)
+                installDateSort.setChecked(byDate);
+            return super.onPrepareOptionsMenu(menu);
+        }
         if (!showingApps)
             return super.onPrepareOptionsMenu(menu);
 
@@ -1306,7 +1321,18 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
             return true;
         } else if (itemId == R.id.menu_sort_name) {
             item.setChecked(true);
-            prefs.edit().putString("sort", "name").apply();
+            if (currentTab == R.id.nav_firewall) {
+                if (firewallFragment != null)
+                    firewallFragment.setSortMode(FirewallPolicyLogic.SORT_NAME);
+            } else {
+                prefs.edit().putString("sort", "name").apply();
+            }
+            return true;
+        } else if (itemId == R.id.menu_sort_install_date) {
+            if (currentTab == R.id.nav_firewall && firewallFragment != null) {
+                item.setChecked(true);
+                firewallFragment.setSortMode(FirewallPolicyLogic.SORT_INSTALL_DATE);
+            }
             return true;
         } else if (itemId == R.id.menu_sort_trackers_week) {
             item.setChecked(true);
@@ -1399,6 +1425,8 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
 
         if (vpn)
             ensureVpnFragment();
+        if (firewall)
+            ensureFirewallFragment();
 
         // The original TrackerControl app list and Timeline remain intact;
         // Firewall and Settings are separate destinations with their own views.
@@ -1411,9 +1439,9 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         if (settings)
             refreshSettingsHost();
 
-        // Search filters the Tracker list. Collapse it whenever the user leaves
-        // Tracker; expanding it from another tab first switches to Tracker.
-        if (!tracker && menuSearch != null && menuSearch.isActionViewExpanded())
+        // Search is shared by the two app-list destinations, but each list owns
+        // its own query state. Collapse it only when leaving both destinations.
+        if (!tracker && !firewall && menuSearch != null && menuSearch.isActionViewExpanded())
             menuSearch.collapseActionView();
 
         // No invalidateOptionsMenu(): filter/sort live in the overflow,
@@ -1434,6 +1462,32 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
             return;
         if (swEnabled.isChecked() != enabled)
             swEnabled.setChecked(enabled);
+    }
+
+    private void ensureFirewallFragment() {
+        androidx.fragment.app.Fragment existing =
+                getSupportFragmentManager().findFragmentById(R.id.firewallContainer);
+        if (existing instanceof FirewallFragment) {
+            firewallFragment = (FirewallFragment) existing;
+            return;
+        }
+        if (firewallFragmentRequested)
+            return;
+        firewallFragmentRequested = true;
+        firewallFragment = new FirewallFragment();
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.firewallContainer, firewallFragment)
+                .commit();
+    }
+
+    private void filterCurrentList(String query) {
+        if (currentTab == R.id.nav_firewall) {
+            if (firewallFragment != null)
+                firewallFragment.setSearchQuery(query);
+        } else if (adapter != null) {
+            adapter.getFilter().filter(query);
+        }
     }
 
     private void ensureVpnFragment() {
@@ -1534,7 +1588,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
             SearchView searchView = (SearchView) menuSearch.getActionView();
             if (search == null) {
                 if (menuSearch.isActionViewExpanded())
-                    adapter.getFilter().filter(searchView.getQuery().toString());
+                    filterCurrentList(searchView.getQuery().toString());
             } else {
                 menuSearch.expandActionView();
                 searchView.setQuery(search, true);
