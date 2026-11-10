@@ -50,7 +50,7 @@
     <color name="timeline_blocked">@color/status_error</color>
     <color name="timeline_allowed">@color/status_connected</color>
 
-    <color name="bottom_nav_background">@color/vian_surface</color>
+    <color name="bottom_nav_background">#FFFFFF</color>
     <color name="bottom_nav_active_indicator">@color/vian_primary_container</color>
 
     <style name="TrackerControlBottomNavActiveIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
