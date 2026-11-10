@@ -1725,28 +1725,7 @@ public class ServiceSinkhole extends VpnService {
     }
 
     private static List<InetAddress> getWireGuardDns(net.kollnig.missioncontrol.wg.WgConfig config) {
-        List<InetAddress> listDns = new ArrayList<>();
-
-        for (String entry : config.getDns()) {
-            String dns = entry.trim();
-            if (dns.isEmpty())
-                continue;
-
-            if (!Util.isNumericAddress(dns)) {
-                Log.i(TAG, "Skipping non-numeric WG DNS/search entry=" + dns);
-                continue;
-            }
-
-            try {
-                InetAddress address = InetAddress.getByName(dns);
-                if (!(address.isLoopbackAddress() || address.isAnyLocalAddress()))
-                    listDns.add(address);
-            } catch (Throwable ex) {
-                Log.w(TAG, "Skipping invalid WG DNS=" + dns + ": " + ex.getMessage());
-            }
-        }
-
-        return listDns;
+        return DnsChangerConfig.parseWireGuardDns(config.getDns());
     }
 
     /**

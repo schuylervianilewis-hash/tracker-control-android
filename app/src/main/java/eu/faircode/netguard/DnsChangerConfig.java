@@ -226,13 +226,56 @@ public final class DnsChangerConfig {
         if (!hasText(raw))
             return null;
         String value = raw.trim();
-        if (!Util.isNumericAddress(value))
+        if (!isNumericAddressLiteral(value))
             return null;
         try {
+            // This value has already been validated as a numeric IP literal,
+            // so getByName parses it locally and never performs DNS lookup.
             return InetAddress.getByName(value);
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    private static boolean isNumericAddressLiteral(String value) {
+        if (value.indexOf(':') >= 0)
+            return value.matches("[0-9A-Fa-f:.]+");
+
+        String[] octets = value.split("\\.", -1);
+        if (octets.length != 4)
+            return false;
+
+        for (String octet : octets) {
+            if (octet.isEmpty() || (octet.length() > 1 && octet.charAt(0) == '0'))
+                return false;
+            int number = 0;
+            for (int i = 0; i < octet.length(); i++) {
+                char digit = octet.charAt(i);
+                if (digit < '0' || digit > '9')
+                    return false;
+                number = number * 10 + (digit - '0');
+                if (number > 255)
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    static List<InetAddress> parseWireGuardDns(List<String> entries) {
+        List<InetAddress> result = new ArrayList<>();
+        if (entries == null)
+            return result;
+
+        for (String entry : entries) {
+            InetAddress address = parseNumeric(entry);
+            // Preserve the pre-existing WG DNS acceptance rules exactly:
+            // only loopback and unspecified addresses are filtered here.
+            if (address == null || address.isLoopbackAddress() ||
+                    address.isAnyLocalAddress() || result.contains(address))
+                continue;
+            result.add(address);
+        }
+        return result;
     }
 
     private static boolean isUsable(InetAddress address) {

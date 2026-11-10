@@ -139,6 +139,17 @@ public class DnsChangerConfigTest {
     }
 
     @Test
+    public void wireGuardDnsParserAcceptsNumericAddressesAndSkipsSearchDomains() {
+        List<InetAddress> result = DnsChangerConfig.parseWireGuardDns(
+                Arrays.asList("10.64.0.1", "example.com", "2001:4860:4860::8888",
+                        "127.0.0.1", "10.64.0.1"));
+
+        assertEquals(2, result.size());
+        assertEquals("10.64.0.1", result.get(0).getHostAddress());
+        assertTrue(result.get(1) instanceof java.net.Inet6Address);
+    }
+
+    @Test
     public void invalidStoredModeFallsBackToAutomatic() {
         prefs.edit().putString(DnsChangerConfig.PREF_DNS_MODE, "not-a-mode").commit();
         assertEquals(DnsChangerConfig.MODE_AUTOMATIC,
