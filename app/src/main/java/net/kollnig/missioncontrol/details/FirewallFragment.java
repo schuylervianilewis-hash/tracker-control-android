@@ -261,7 +261,21 @@ public class FirewallFragment extends Fragment {
         final InternetBlocklist internet = InternetBlocklist.getInstance(requireContext());
         final boolean vpnAvailable = remoteVpnAvailable;
         final String selectedSort = sortMode;
+        final Comparator<FirewallPolicyLogic.Entry> entryComparator =
+                FirewallPolicyLogic.comparator(selectedSort);
+        final Map<String, FirewallPolicyLogic.Entry> sortEntries = new HashMap<>();
+        for (Rule rule : filtered) {
+            int priority = FirewallPolicyLogic.priority(
+                    rule.apply, internet.blockedInternet(rule.uid),
+                    vpnAvailable && rule.wg_route);
+            sortEntries.put(rule.packageName, new FirewallPolicyLogic.Entry(
+                    priority, rule.name, rule.packageName, rule.firstInstallTime));
+        }
         Collections.sort(filtered, (left, right) -> {
+            return entryComparator.compare(sortEntries.get(left.packageName),
+                    sortEntries.get(right.packageName));
+        });
+/*
             int leftPriority = FirewallPolicyLogic.priority(
                     left.apply, internet.blockedInternet(left.uid),
                     vpnAvailable && left.wg_route);
@@ -273,7 +287,7 @@ public class FirewallFragment extends Fragment {
             FirewallPolicyLogic.Entry b = new FirewallPolicyLogic.Entry(rightPriority,
                     right.name, right.packageName, right.firstInstallTime);
             return FirewallPolicyLogic.comparator(selectedSort).compare(a, b);
-        });
+        }); */
         adapter.setItems(filtered);
     }
 
@@ -313,7 +327,7 @@ public class FirewallFragment extends Fragment {
     }
 
     private void confirmGlobalAction(String action) {
-        if (ACTION_VPN.equals(action) && !isRemoteVpnAvailable()) {
+        if (ACTION_VPN.equals(action) && !remoteVpnAvailable) {
             Toast.makeText(requireContext(), R.string.app_route_unavailable_no_vpn,
                     Toast.LENGTH_LONG).show();
             return;
@@ -360,10 +374,6 @@ public class FirewallFragment extends Fragment {
             routeEditor.apply();
         AppProtectionWriter.applyManualBatch(requireContext(), changes, routeChanged);
         refresh();
-    }
-
-    private boolean isRemoteVpnAvailable() {
-        return isRemoteVpnAvailable(requireContext());
     }
 
     private static boolean isRemoteVpnAvailable(Context context) {
