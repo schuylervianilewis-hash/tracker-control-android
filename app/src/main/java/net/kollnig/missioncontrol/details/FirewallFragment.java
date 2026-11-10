@@ -275,19 +275,6 @@ public class FirewallFragment extends Fragment {
             return entryComparator.compare(sortEntries.get(left.packageName),
                     sortEntries.get(right.packageName));
         });
-/*
-            int leftPriority = FirewallPolicyLogic.priority(
-                    left.apply, internet.blockedInternet(left.uid),
-                    vpnAvailable && left.wg_route);
-            int rightPriority = FirewallPolicyLogic.priority(
-                    right.apply, internet.blockedInternet(right.uid),
-                    vpnAvailable && right.wg_route);
-            FirewallPolicyLogic.Entry a = new FirewallPolicyLogic.Entry(leftPriority,
-                    left.name, left.packageName, left.firstInstallTime);
-            FirewallPolicyLogic.Entry b = new FirewallPolicyLogic.Entry(rightPriority,
-                    right.name, right.packageName, right.firstInstallTime);
-            return FirewallPolicyLogic.comparator(selectedSort).compare(a, b);
-        }); */
         adapter.setItems(filtered);
     }
 
