@@ -61,6 +61,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -315,12 +316,20 @@ internal fun TimelineScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
+                    .then(
+                        if (model.featurePageTitle != null)
+                            Modifier.clearAndSetSemantics { }
+                        else
+                            Modifier
+                    )
             ) {
                 TimelineList(model, callbacks)
             }
 
             // Keep the Timeline mounted underneath this destination so its scroll
             // position, refresh state and loaded data survive Back navigation.
+            // Clear the covered list's semantics while the page is open so
+            // accessibility and tests interact only with the active destination.
             model.featurePageTitle?.let { title ->
                 FeatureDestinationPage(title, callbacks)
             }
