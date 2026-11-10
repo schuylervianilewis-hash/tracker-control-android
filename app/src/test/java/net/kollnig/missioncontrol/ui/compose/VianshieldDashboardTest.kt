@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.preference.PreferenceManager
 import androidx.test.core.app.ApplicationProvider
@@ -108,12 +109,12 @@ class VianshieldDashboardTest {
 
         compose.onNodeWithTag("dashboard-feature-page").assertIsDisplayed()
         compose.onNodeWithText(title).assertIsDisplayed()
-        compose.onNodeWithTag("dns-mode-automatic").assertIsDisplayed()
-        compose.onNodeWithTag("dns-mode-cloudflare").assertIsDisplayed()
-        compose.onNodeWithTag("dns-mode-google").assertIsDisplayed()
-        compose.onNodeWithTag("dns-mode-quad9").assertIsDisplayed()
-        compose.onNodeWithTag("dns-mode-wireguard").assertIsDisplayed()
-        compose.onNodeWithTag("dns-mode-custom").assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-automatic").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-cloudflare").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-google").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-quad9").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-wireguard").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("dns-mode-custom").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("dashboard-feature-back").performClick()
         assertEquals(1, closeRequests)
     }
@@ -130,7 +131,7 @@ class VianshieldDashboardTest {
             }
         }
 
-        compose.onNodeWithTag("dns-mode-cloudflare").performClick()
+        compose.onNodeWithTag("dns-mode-cloudflare").performScrollTo().performClick()
         assertEquals(
             DnsChangerConfig.MODE_CLOUDFLARE,
             prefs.getString(DnsChangerConfig.PREF_DNS_MODE, null)
@@ -149,13 +150,13 @@ class VianshieldDashboardTest {
             }
         }
 
-        compose.onNodeWithTag("dns-mode-custom").performClick()
-        compose.onNodeWithTag("dns-custom-save").performClick()
+        compose.onNodeWithTag("dns-mode-custom").performScrollTo().performClick()
+        compose.onNodeWithTag("dns-custom-save").performScrollTo().performClick()
         compose.onNodeWithTag("dns-custom-error").assertIsDisplayed()
         assertFalse(prefs.contains(DnsChangerConfig.PREF_DNS_MODE))
 
-        compose.onNodeWithTag("dns-custom-primary").performTextInput("192.0.2.53")
-        compose.onNodeWithTag("dns-custom-secondary").performTextInput("192.0.2.54")
+        compose.onNodeWithTag("dns-custom-primary").performScrollTo().performTextInput("192.0.2.53")
+        compose.onNodeWithTag("dns-custom-secondary").performScrollTo().performTextInput("192.0.2.54")
         compose.onNodeWithTag("dns-custom-save").performClick()
 
         assertEquals(
