@@ -225,7 +225,9 @@ public final class InternetPermissionPolicy {
     }
 
     static boolean isCriticalSystemPackage(String packageName) {
-        return !TextUtils.isEmpty(packageName)
+        // Keep this pure helper safe for the plain JVM unit-test source set;
+        // Android's TextUtils methods are not mocked there.
+        return packageName != null && !packageName.isEmpty()
                 && CRITICAL_SYSTEM_PACKAGES.contains(packageName);
     }
 

@@ -31,7 +31,9 @@ public class FirewallPolicyLogicTest {
                 entry(1, "Recent high", "recent-high", 40, 3, 0, 0, 90)));
 
         apps.sort(FirewallPolicyLogic.comparator(FirewallPolicyLogic.SORT_TRACKERS_WEEK));
-        assertPackages(apps, "week-high", "all-high", "recent-high", "week-low");
+        // Week-high (9) precedes week-low (1); the zero-week rows follow,
+        // ordered by their deterministic name tie-breaker.
+        assertPackages(apps, "week-high", "week-low", "all-high", "recent-high");
         apps.sort(FirewallPolicyLogic.comparator(FirewallPolicyLogic.SORT_TRACKERS_ALL));
         assertPackages(apps, "all-high", "week-low", "week-high", "recent-high");
         apps.sort(FirewallPolicyLogic.comparator(FirewallPolicyLogic.SORT_TRACKERS_RECENT));
