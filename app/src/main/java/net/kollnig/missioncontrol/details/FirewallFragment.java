@@ -386,7 +386,7 @@ public class FirewallFragment extends Fragment {
         if (ACTION_VPN.equals(action) || ACTION_BYPASS.equals(action)) {
             requireContext().getSharedPreferences(Rule.PREF_WG_ROUTE, Context.MODE_PRIVATE)
                     .edit().putBoolean(rule.packageName, ACTION_VPN.equals(action)).apply();
-            AppProtectionWriter.applyManual(requireContext(), rule.packageName, rule.uid,
+            AppProtectionWriter.applyManualAndReload(requireContext(), rule.packageName, rule.uid,
                     AppProtectionState.allowInternetKeepingProtection());
         } else {
             AppProtectionWriter.applyManual(requireContext(), rule.packageName, rule.uid,

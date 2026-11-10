@@ -114,6 +114,20 @@ public final class AppProtectionWriter {
     }
 
     /**
+     * Apply a manual state change and force a service reload. Use when the
+     * caller also changed remote-routing preferences, which are not part of
+     * AppProtectionState's four-store change plan.
+     */
+    public static void applyManualAndReload(Context context, String packageName, int uid,
+            AppProtectionState.Change change) {
+        if (change == null)
+            return;
+        Context appContext = context.getApplicationContext();
+        PausedApps.cancel(appContext, packageName, uid);
+        apply(appContext, packageName, uid, change, true);
+    }
+
+    /**
      * Apply a scheduled raw apply value. This path deliberately never cancels
      * a pause snapshot, because it is used while sweeping that snapshot.
      */
@@ -149,13 +163,25 @@ public final class AppProtectionWriter {
 
     private static void apply(Context context, String packageName, int uid,
             AppProtectionState.Change change) {
+        apply(context, packageName, uid, change, false);
+    }
+
+    private static void apply(Context context, String packageName, int uid,
+            AppProtectionState.Change change, boolean forceReload) {
         apply(context, packageName, uid, change.apply, change.trackerProtect,
-                change.internetBlocked, change.minimalOnly);
+                change.internetBlocked, change.minimalOnly, forceReload);
     }
 
     private static void apply(Context context, String packageName, int uid,
             boolean applyValue, Boolean trackerProtectValue, Boolean internetBlocked,
             Boolean minimalOnlyValue) {
+        apply(context, packageName, uid, applyValue, trackerProtectValue,
+                internetBlocked, minimalOnlyValue, false);
+    }
+
+    private static void apply(Context context, String packageName, int uid,
+            boolean applyValue, Boolean trackerProtectValue, Boolean internetBlocked,
+            Boolean minimalOnlyValue, boolean forceReload) {
         SharedPreferences apply = context.getSharedPreferences("apply", Context.MODE_PRIVATE);
         SharedPreferences trackerProtect = context.getSharedPreferences("tracker_protect", Context.MODE_PRIVATE);
         SharedPreferences minimalOnlyPrefs = context.getSharedPreferences("tracker_essential", Context.MODE_PRIVATE);
@@ -178,7 +204,7 @@ public final class AppProtectionWriter {
 
         // The service reads this per-package flag through the live preferences
         // handle, so changing it alone needs no service reload.
-        if (!shouldReloadAfterChange(applyValue, applyBefore, trackerProtectValue,
+        if (!forceReload && !shouldReloadAfterChange(applyValue, applyBefore, trackerProtectValue,
                 protectBefore, internetBlocked, internetBefore))
             return;
 
