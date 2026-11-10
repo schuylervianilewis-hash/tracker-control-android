@@ -396,7 +396,8 @@ public class FirewallFragment extends Fragment {
     }
 
     private void toggleExpanded(Rule rule) {
-        if (rule == null || !rule.pkg || !rule.internet)
+        if (rule == null || !rule.pkg || !rule.internet
+                || TextUtils.equals(rule.packageName, requireContext().getPackageName()))
             return;
         String next = TextUtils.equals(expandedPackage, rule.packageName) ? null : rule.packageName;
         expandedPackage = next;
@@ -964,16 +965,17 @@ public class FirewallFragment extends Fragment {
                             : R.string.firewall_expand_app, rule.name);
             holder.icon.setContentDescription(expandDescription);
             holder.name.setContentDescription(expandDescription);
-            holder.icon.setEnabled(rule.pkg && rule.internet);
-            holder.name.setEnabled(rule.pkg && rule.internet);
+            holder.icon.setEnabled(canManage);
+            holder.name.setEnabled(canManage);
             holder.icon.setOnClickListener(view -> toggleExpanded(rule));
             holder.name.setOnClickListener(view -> toggleExpanded(rule));
             holder.block.setContentDescription(protectedEngineApp
                     ? getString(R.string.firewall_self_app_note)
                     : context.getString(R.string.firewall_action_for_app,
                             context.getString(R.string.firewall_block), rule.name));
-            holder.vpn.setContentDescription(!remoteVpnAvailable
-                    ? getString(R.string.app_route_unavailable_no_vpn)
+            holder.vpn.setContentDescription(protectedEngineApp
+                    ? getString(R.string.firewall_self_app_note)
+                    : !remoteVpnAvailable ? getString(R.string.app_route_unavailable_no_vpn)
                     : context.getString(R.string.firewall_action_for_app,
                             context.getString(R.string.firewall_vpn), rule.name));
             holder.bypass.setContentDescription(protectedEngineApp
