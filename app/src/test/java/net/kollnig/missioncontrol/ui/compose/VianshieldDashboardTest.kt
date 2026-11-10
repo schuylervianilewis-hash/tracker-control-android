@@ -157,7 +157,7 @@ class VianshieldDashboardTest {
 
         compose.onNodeWithTag("dns-custom-primary").performScrollTo().performTextInput("192.0.2.53")
         compose.onNodeWithTag("dns-custom-secondary").performScrollTo().performTextInput("192.0.2.54")
-        compose.onNodeWithTag("dns-custom-save").performClick()
+        compose.onNodeWithTag("dns-custom-save").performScrollTo().performClick()
 
         assertEquals(
             DnsChangerConfig.MODE_CUSTOM,
