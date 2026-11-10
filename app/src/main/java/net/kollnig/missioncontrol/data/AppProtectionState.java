@@ -74,6 +74,15 @@ public enum AppProtectionState {
     }
 
     /**
+     * Re-enable TrackerControl processing and allow internet while preserving
+     * the app's current tracker-protection and minimal-only choices. Used when
+     * Firewall changes only the remote route (VPN versus direct).
+     */
+    public static Change allowInternetKeepingProtection() {
+        return new Change(true, null, Boolean.FALSE, null);
+    }
+
+    /**
      * The writes that move an app into {@code target}.
      * <p>
      * States that do not depend on a store leave it alone, so switching to

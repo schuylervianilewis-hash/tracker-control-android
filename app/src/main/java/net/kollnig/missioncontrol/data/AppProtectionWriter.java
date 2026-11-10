@@ -37,6 +37,83 @@ public final class AppProtectionWriter {
     }
 
     /**
+     * Apply several user-selected per-app changes as one preference update and
+     * at most one VPN reload. This keeps Firewall's global actions from queuing
+     * one service rebuild per installed app.
+     */
+    public static void applyManualBatch(Context context, List<PackageChange> changes,
+            boolean forceReload) {
+        if (changes == null || changes.isEmpty())
+            return;
+
+        Context appContext = context.getApplicationContext();
+        SharedPreferences apply = appContext.getSharedPreferences("apply", Context.MODE_PRIVATE);
+        SharedPreferences trackerProtect = appContext.getSharedPreferences("tracker_protect", Context.MODE_PRIVATE);
+        SharedPreferences minimalOnlyPrefs = appContext.getSharedPreferences("tracker_essential", Context.MODE_PRIVATE);
+        InternetBlocklist internetBlocklist = InternetBlocklist.getInstance(appContext);
+
+        SharedPreferences.Editor applyEditor = apply.edit();
+        SharedPreferences.Editor trackerEditor = trackerProtect.edit();
+        SharedPreferences.Editor minimalEditor = minimalOnlyPrefs.edit();
+        boolean reloadNeeded = forceReload;
+        boolean internetChanged = false;
+
+        for (PackageChange item : changes) {
+            if (item == null || item.packageName == null || item.change == null)
+                continue;
+
+            if (PausedApps.isPaused(appContext, item.packageName))
+                PausedApps.cancel(appContext, item.packageName, item.uid);
+
+            AppProtectionState.Change change = item.change;
+            boolean applyBefore = apply.getBoolean(item.packageName, true);
+            boolean protectBefore = BlockingMode.isTrackerProtectionEnabled(
+                    appContext, trackerProtect, item.packageName);
+            boolean internetBefore = internetBlocklist.blockedInternet(item.uid);
+
+            applyEditor.putBoolean(item.packageName, change.apply);
+            if (change.apply)
+                BlockingMode.clearAutoExcludedApp(appContext, item.packageName);
+            if (change.trackerProtect != null)
+                trackerEditor.putBoolean(item.packageName, change.trackerProtect);
+            if (change.minimalOnly != null)
+                minimalEditor.putBoolean(item.packageName, change.minimalOnly);
+            if (change.internetBlocked != null) {
+                if (change.internetBlocked)
+                    internetBlocklist.block(item.uid);
+                else
+                    internetBlocklist.unblock(item.uid);
+                internetChanged |= change.internetBlocked != internetBefore;
+            }
+
+            reloadNeeded |= shouldReloadAfterChange(change.apply, applyBefore,
+                    change.trackerProtect, protectBefore,
+                    change.internetBlocked, internetBefore);
+        }
+
+        applyEditor.apply();
+        trackerEditor.apply();
+        minimalEditor.apply();
+        if (internetChanged)
+            internetBlocklist.saveSettings(appContext);
+        if (reloadNeeded)
+            reload(appContext);
+    }
+
+    /** One package's member of a batched manual protection update. */
+    public static final class PackageChange {
+        public final String packageName;
+        public final int uid;
+        public final AppProtectionState.Change change;
+
+        public PackageChange(String packageName, int uid, AppProtectionState.Change change) {
+            this.packageName = packageName;
+            this.uid = uid;
+            this.change = change;
+        }
+    }
+
+    /**
      * Apply a scheduled raw apply value. This path deliberately never cancels
      * a pause snapshot, because it is used while sweeping that snapshot.
      */

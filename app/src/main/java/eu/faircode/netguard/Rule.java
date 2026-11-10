@@ -75,6 +75,8 @@ public class Rule {
     public int icon;
     public String name;
     public String version;
+    /** Package install timestamp used by Firewall's secondary sort. */
+    public long firstInstallTime;
     public boolean system;
     public boolean internet;
     public boolean enabled;
@@ -288,6 +290,7 @@ public class Rule {
         this.packageName = info.packageName;
         this.icon = info.applicationInfo.icon;
         this.version = info.versionName;
+        this.firstInstallTime = info.firstInstallTime;
         if (info.applicationInfo.uid == 0) {
             this.name = context.getString(R.string.title_root);
             this.system = true;
