@@ -25,7 +25,7 @@ class VianshieldDashboardTest {
     val compose = createComposeRule()
 
     private val context: Context
-        get() = ApplicationProvider.getApplicationContext()
+        get() = ApplicationProvider.getApplicationContext<Context>()
 
     private var requestedProtection: Boolean? = null
     private var openedFeature: String? = null

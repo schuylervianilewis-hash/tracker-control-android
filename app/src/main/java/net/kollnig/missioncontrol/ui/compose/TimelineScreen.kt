@@ -13,6 +13,7 @@ import android.text.format.DateUtils
 import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -642,6 +643,10 @@ private fun VianshieldDashboard(
         MaterialTheme.colorScheme.onPrimary
     else
         MaterialTheme.colorScheme.onSurfaceVariant
+    val speedThrottlingTitle = stringResource(R.string.dashboard_speed_throttling)
+    val dnsChangerTitle = stringResource(R.string.dashboard_dns_changer)
+    val adFilterTitle = stringResource(R.string.dashboard_ad_filter)
+    val blockedDomainsTitle = stringResource(R.string.dashboard_blocked_domains)
 
     Column(
         modifier = Modifier
@@ -694,18 +699,18 @@ private fun VianshieldDashboard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 DashboardFeatureCard(
-                    title = stringResource(R.string.dashboard_speed_throttling),
+                    title = speedThrottlingTitle,
                     symbol = "↕",
                     testTag = "dashboard-card-speed-throttling",
                     modifier = Modifier.weight(1f),
-                    onClick = { callbacks.onOpenFeaturePage(title = stringResource(R.string.dashboard_speed_throttling)) }
+                    onClick = { callbacks.onOpenFeaturePage(speedThrottlingTitle) }
                 )
                 DashboardFeatureCard(
-                    title = stringResource(R.string.dashboard_dns_changer),
+                    title = dnsChangerTitle,
                     symbol = "⌁",
                     testTag = "dashboard-card-dns-changer",
                     modifier = Modifier.weight(1f),
-                    onClick = { callbacks.onOpenFeaturePage(title = stringResource(R.string.dashboard_dns_changer)) }
+                    onClick = { callbacks.onOpenFeaturePage(dnsChangerTitle) }
                 )
             }
             Row(
@@ -713,18 +718,18 @@ private fun VianshieldDashboard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 DashboardFeatureCard(
-                    title = stringResource(R.string.dashboard_ad_filter),
+                    title = adFilterTitle,
                     symbol = "✦",
                     testTag = "dashboard-card-ad-filter",
                     modifier = Modifier.weight(1f),
-                    onClick = { callbacks.onOpenFeaturePage(title = stringResource(R.string.dashboard_ad_filter)) }
+                    onClick = { callbacks.onOpenFeaturePage(adFilterTitle) }
                 )
                 DashboardFeatureCard(
-                    title = stringResource(R.string.dashboard_blocked_domains),
+                    title = blockedDomainsTitle,
                     symbol = "⊘",
                     testTag = "dashboard-card-blocked-domains",
                     modifier = Modifier.weight(1f),
-                    onClick = { callbacks.onOpenFeaturePage(title = stringResource(R.string.dashboard_blocked_domains)) }
+                    onClick = { callbacks.onOpenFeaturePage(blockedDomainsTitle) }
                 )
             }
         }
@@ -786,7 +791,7 @@ private fun FeatureDestinationPage(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = {}
             )
