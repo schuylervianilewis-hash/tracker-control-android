@@ -1215,7 +1215,7 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 Intent intent = getIntent();
                 intent.removeExtra(EXTRA_SEARCH);
 
-                filterCurrentList(null);
+                clearListSearches();
                 return true;
             }
         });
@@ -1481,6 +1481,13 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 .beginTransaction()
                 .replace(R.id.firewallContainer, firewallFragment)
                 .commit();
+    }
+
+    private void clearListSearches() {
+        if (adapter != null)
+            adapter.getFilter().filter(null);
+        if (firewallFragment != null)
+            firewallFragment.setSearchQuery(null);
     }
 
     private void filterCurrentList(String query) {

@@ -123,6 +123,23 @@ public class AppProtectionStateTest {
     }
 
     @Test
+    public void allowInternetKeepingProtectionPreservesTrackerMode() {
+        Change change = AppProtectionState.allowInternetKeepingProtection();
+        assertTrue(change.apply);
+        assertNull(change.trackerProtect);
+        assertNull(change.minimalOnly);
+        assertEquals(Boolean.FALSE, change.internetBlocked);
+
+        for (boolean trackerProtect : new boolean[] { true, false })
+            for (boolean minimalOnly : new boolean[] { true, false })
+                assertEquals(AppProtectionState.resolve(true, trackerProtect, false, minimalOnly),
+                        AppProtectionState.resolve(change.apply,
+                                change.trackerProtect == null ? trackerProtect : change.trackerProtect,
+                                change.internetBlocked,
+                                change.minimalOnly == null ? minimalOnly : change.minimalOnly));
+    }
+
+    @Test
     public void noInternetKeepsTrackerProtectionChoice() {
         Change change = AppProtectionState.of(AppProtectionState.NO_INTERNET);
         assertNull(change.trackerProtect);

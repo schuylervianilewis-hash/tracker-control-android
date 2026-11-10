@@ -106,6 +106,7 @@ public class FirewallFragment extends Fragment {
     private boolean blockedTrackersLoaded;
     private boolean blockedRecordingUnavailable;
     private boolean showingResume;
+    private boolean remoteVpnAvailable;
     private boolean destroyed;
     private ProtectionScreenController protectionController;
 
@@ -204,10 +205,13 @@ public class FirewallFragment extends Fragment {
         if (swipeRefresh != null)
             swipeRefresh.setRefreshing(true);
         final Context context = requireContext().getApplicationContext();
+        androidx.fragment.app.FragmentActivity activity = getActivity();
+        if (activity == null)
+            return;
         AsyncTask.execute(() -> {
             List<Rule> result = Rule.getRules(false, true, context);
-            requireActivity().runOnUiThread(() -> {
-                if (destroyed || adapter == null)
+            activity.runOnUiThread(() -> {
+                if (destroyed || !isAdded() || adapter == null)
                     return;
                 allRules.clear();
                 if (result != null)
@@ -246,12 +250,16 @@ public class FirewallFragment extends Fragment {
         }
 
         final InternetBlocklist internet = InternetBlocklist.getInstance(requireContext());
+        remoteVpnAvailable = isRemoteVpnAvailable();
+        final boolean vpnAvailable = remoteVpnAvailable;
         final String selectedSort = sortMode;
         Collections.sort(filtered, (left, right) -> {
             int leftPriority = FirewallPolicyLogic.priority(
-                    left.apply, internet.blockedInternet(left.uid), left.wg_route);
+                    left.apply, internet.blockedInternet(left.uid),
+                    vpnAvailable && left.wg_route);
             int rightPriority = FirewallPolicyLogic.priority(
-                    right.apply, internet.blockedInternet(right.uid), right.wg_route);
+                    right.apply, internet.blockedInternet(right.uid),
+                    vpnAvailable && right.wg_route);
             FirewallPolicyLogic.Entry a = new FirewallPolicyLogic.Entry(leftPriority,
                     left.name, left.packageName, left.firstInstallTime);
             FirewallPolicyLogic.Entry b = new FirewallPolicyLogic.Entry(rightPriority,
@@ -670,12 +678,16 @@ public class FirewallFragment extends Fragment {
         blockedTrackersLoaded = false;
         blockedRecordingUnavailable = false;
         renderProtectionPanel();
+        Context context = requireContext().getApplicationContext();
+        androidx.fragment.app.FragmentActivity activity = getActivity();
+        if (activity == null)
+            return;
         AsyncTask.execute(() -> {
-            List<TrackerCategory> categories = TrackerList.getInstance(requireContext())
-                    .getBlockedAppTrackers(requireContext(), uid);
-            if (!isAdded())
-                return;
-            requireActivity().runOnUiThread(() -> {
+            List<TrackerCategory> categories = TrackerList.getInstance(context)
+                    .getBlockedAppTrackers(context, uid);
+            activity.runOnUiThread(() -> {
+                if (!isAdded())
+                    return;
                 if (!destroyed && generation == blockedTrackerLoadGeneration
                         && TextUtils.equals(packageName, expandedPackage)) {
                     blockedTrackerCategories.clear();
@@ -896,8 +908,8 @@ public class FirewallFragment extends Fragment {
             boolean active = rule.apply;
             boolean blocked = active
                     && InternetBlocklist.getInstance(context).blockedInternet(rule.uid);
-            boolean vpn = active && !blocked && rule.wg_route;
-            boolean bypass = active && !blocked && !rule.wg_route;
+            boolean vpn = active && !blocked && remoteVpnAvailable && rule.wg_route;
+            boolean bypass = active && !blocked && !vpn;
             stylePolicyButton(holder.block, blocked);
             stylePolicyButton(holder.vpn, vpn);
             stylePolicyButton(holder.bypass, bypass);
@@ -932,7 +944,8 @@ public class FirewallFragment extends Fragment {
                 return getString(R.string.firewall_excluded_status);
             if (InternetBlocklist.getInstance(requireContext()).blockedInternet(rule.uid))
                 return getString(R.string.firewall_block);
-            return rule.wg_route ? getString(R.string.firewall_vpn)
+            return remoteVpnAvailable && rule.wg_route
+                    ? getString(R.string.firewall_vpn)
                     : getString(R.string.firewall_bypass);
         }
 
