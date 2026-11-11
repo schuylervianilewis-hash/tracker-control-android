@@ -8,6 +8,10 @@ import static org.junit.Assert.assertTrue;
 import android.content.res.XmlResourceParser;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Menu;
+
+import androidx.appcompat.view.menu.MenuBuilder;
+import androidx.preference.PreferenceManager;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
@@ -130,6 +134,33 @@ public class ActivityMainNavigationTest {
         } finally { parser.close(); }
         assertFalse(hasSettingsEntry);
     }
+    @Test
+    public void vpnOverflowActionsAreVisibleOnlyOnVpnTabAndShowSavedRouteMode() throws Exception {
+        Menu menu = new MenuBuilder(activity);
+        activity.getMenuInflater().inflate(R.menu.main, menu);
+        PreferenceManager.getDefaultSharedPreferences(activity).edit()
+                .putString("wg_route_mode", "selected")
+                .commit();
+
+        setField("currentTab", R.id.nav_vpn);
+        activity.onPrepareOptionsMenu(menu);
+
+        assertTrue(menu.findItem(R.id.menu_vpn_saved_profiles).isVisible());
+        assertTrue(menu.findItem(R.id.menu_vpn_manage_profiles).isVisible());
+        assertTrue(menu.findItem(R.id.menu_vpn_import_files).isVisible());
+        assertTrue(menu.findItem(R.id.menu_vpn_providers).isVisible());
+        assertTrue(menu.findItem(R.id.menu_vpn_route_mode).isVisible());
+        assertTrue(menu.findItem(R.id.menu_vpn_route_selected).isChecked());
+        assertFalse(menu.findItem(R.id.menu_vpn_route_all).isChecked());
+
+        setField("currentTab", R.id.nav_apps);
+        activity.onPrepareOptionsMenu(menu);
+        assertFalse(menu.findItem(R.id.menu_vpn_saved_profiles).isVisible());
+        assertFalse(menu.findItem(R.id.menu_vpn_manage_profiles).isVisible());
+        assertFalse(menu.findItem(R.id.menu_vpn_route_mode).isVisible());
+        assertTrue(menu.findItem(R.id.menu_filter).isVisible());
+    }
+
     private void assertTab(int tabId, int mainVisibility, int trackerVisibility,
                            int vpnVisibility, int firewallVisibility, int settingsVisibility)
             throws Exception {
