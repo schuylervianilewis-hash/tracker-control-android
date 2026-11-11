@@ -44,9 +44,9 @@ tasks.register('prefetchOfflineBuildClasspaths') {
     description = 'Downloads the runtime classpath artifacts for a later offline test run and build.'
     group = 'build setup'
     doLast {
-        ['fdroidDebugUnitTestRuntimeClasspath',
-         'fdroidReleaseCompileClasspath',
-         'fdroidReleaseRuntimeClasspath',
+        ['githubDebugUnitTestRuntimeClasspath',
+         'githubReleaseCompileClasspath',
+         'githubReleaseRuntimeClasspath',
          // The Compose compiler resolves this only during release packaging;
          // :app:dependencies and compilation do not cache its artifact.
          'composeMappingProducerClasspath',
