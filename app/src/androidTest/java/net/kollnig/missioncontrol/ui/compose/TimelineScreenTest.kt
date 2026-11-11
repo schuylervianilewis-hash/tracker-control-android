@@ -79,7 +79,7 @@ class TimelineScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("dns-changer-screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("dashboard-feature-page").assertIsDisplayed()
         composeRule.onNodeWithTag("dns-mode-automatic").assertIsDisplayed()
         composeRule.onNodeWithTag("dns-mode-cloudflare").assertIsDisplayed()
         composeRule.onNodeWithTag("dns-mode-google").performScrollTo().assertIsDisplayed()
