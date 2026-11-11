@@ -30,6 +30,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.TooltipCompat;
 import androidx.appcompat.app.AlertDialog;
 import androidx.compose.ui.platform.ComposeView;
 import androidx.core.content.ContextCompat;
@@ -345,7 +346,7 @@ public class FirewallFragment extends Fragment {
                 com.google.android.material.R.attr.colorOnSecondaryContainer));
         button.setContentDescription(context.getString(heading) + " " +
                 context.getString(R.string.firewall_all_accessibility));
-        button.setTooltipText(context.getString(heading) + " " +
+        TooltipCompat.setTooltipText(button, context.getString(heading) + " " +
                 context.getString(R.string.firewall_all_accessibility));
         button.setOnClickListener(view -> confirmGlobalAction(action));
         column.addView(button, new LinearLayout.LayoutParams(
