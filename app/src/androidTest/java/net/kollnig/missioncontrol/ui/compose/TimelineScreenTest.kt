@@ -67,6 +67,27 @@ class TimelineScreenTest {
     }
 
     @Test
+    fun dnsChangerFeatureDestinationRendersTheFunctionalScreen() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val callbacks = RecordingCallbacks()
+        val model = populatedModel().copy(
+            featurePageTitle = context.getString(R.string.dashboard_dns_changer)
+        )
+        composeRule.setContent {
+            TrackerControlTheme {
+                TimelineScreenContent(model, callbacks)
+            }
+        }
+
+        composeRule.onNodeWithTag("dns-changer-screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-automatic").assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-cloudflare").assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-google").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-quad9").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-custom").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun allEmptyVariantsExposeOnlyTheirRelevantAction() {
         val variants = listOf(
             TimelineEmptyState.TRACKER_CONTROL_OFF to null,
