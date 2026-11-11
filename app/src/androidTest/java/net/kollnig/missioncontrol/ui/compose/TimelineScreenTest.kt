@@ -69,16 +69,18 @@ class TimelineScreenTest {
     @Test
     fun dnsChangerFeatureDestinationRendersTheFunctionalScreen() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val callbacks = RecordingCallbacks()
-        val model = populatedModel().copy(
-            featurePageTitle = context.getString(R.string.dashboard_dns_changer)
-        )
+        val model = mutableStateOf(populatedModel())
+        val callbacks = RecordingCallbacks { title ->
+            model.value = model.value.copy(featurePageTitle = title)
+        }
         composeRule.setContent {
             TrackerControlTheme {
-                TimelineScreenContent(model, callbacks)
+                TimelineScreenContent(model.value, callbacks)
             }
         }
 
+        // Exercise the same dashboard-card callback path used by a real tap.
+        composeRule.onNodeWithTag("dashboard-card-dns-changer").performClick()
         composeRule.onNodeWithTag("dashboard-feature-page").assertIsDisplayed()
         composeRule.onNodeWithTag("dns-mode-automatic").assertIsDisplayed()
         composeRule.onNodeWithTag("dns-mode-cloudflare").assertIsDisplayed()
@@ -209,7 +211,9 @@ class TimelineScreenTest {
         )
     }
 
-    private class RecordingCallbacks : TimelineScreenCallbacks {
+    private class RecordingCallbacks(
+        private val openFeaturePage: (String) -> Unit = {}
+    ) : TimelineScreenCallbacks {
         var entryClicks = 0
         var openInsights = 0
         var shareInsights = 0
@@ -248,7 +252,7 @@ class TimelineScreenTest {
 
         override fun onProtectionToggle(enabled: Boolean) = Unit
 
-        override fun onOpenFeaturePage(title: String) = Unit
+        override fun onOpenFeaturePage(title: String) = openFeaturePage(title)
 
         override fun onCloseFeaturePage() = Unit
     }
