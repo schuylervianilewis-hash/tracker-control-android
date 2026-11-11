@@ -94,7 +94,6 @@ internal fun DnsChangerScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .testTag("dashboard-feature-page")
-            .testTag("dns-changer-screen")
     ) {
         Row(
             modifier = Modifier
