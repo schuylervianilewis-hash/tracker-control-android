@@ -341,8 +341,14 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
         } else if (itemId == R.id.menu_vpn_mullvad) {
             openMullvadSetup();
             return true;
+        } else if (itemId == R.id.menu_vpn_mullvad_account) {
+            openMullvadAccountPage();
+            return true;
         } else if (itemId == R.id.menu_vpn_ivpn) {
             openIvpnSetup();
+            return true;
+        } else if (itemId == R.id.menu_vpn_ivpn_account) {
+            openIvpnAccountPage();
             return true;
         } else if (itemId == R.id.menu_vpn_proton) {
             openWireGuardProfiles(ActivityWireGuardProfiles.SETUP_PROTON);

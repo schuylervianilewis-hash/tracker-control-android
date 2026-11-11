@@ -81,6 +81,12 @@
                 android:id="@+id/menu_vpn_ivpn"
                 android:title="@string/vpn_provider_ivpn" />
             <item
+                android:id="@+id/menu_vpn_mullvad_account"
+                android:title="@string/vpn_get_mullvad_account" />
+            <item
+                android:id="@+id/menu_vpn_ivpn_account"
+                android:title="@string/vpn_get_ivpn_account" />
+            <item
                 android:id="@+id/menu_vpn_proton"
                 android:title="@string/setting_wg_proton_setup" />
             <item

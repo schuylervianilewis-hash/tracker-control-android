@@ -1339,7 +1339,9 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
                 itemId == R.id.menu_vpn_manage_profiles ||
                 itemId == R.id.menu_vpn_import_files ||
                 itemId == R.id.menu_vpn_mullvad ||
+                itemId == R.id.menu_vpn_mullvad_account ||
                 itemId == R.id.menu_vpn_ivpn ||
+                itemId == R.id.menu_vpn_ivpn_account ||
                 itemId == R.id.menu_vpn_proton ||
                 itemId == R.id.menu_vpn_custom_config ||
                 itemId == R.id.menu_vpn_scan_qr) {
