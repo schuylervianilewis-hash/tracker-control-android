@@ -1251,7 +1251,9 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         if (filterItem != null) filterItem.setVisible(showingApps || showingFirewall);
         if (sortItem != null) sortItem.setVisible(showingApps || showingFirewall);
 
-        boolean showSystemFilters = prefs.getBoolean("manage_system", false);
+        // Firewall owns an independent system-app filter and must not inherit
+        // Tracker's global "manage system apps" visibility gate.
+        boolean showSystemFilters = showingFirewall || prefs.getBoolean("manage_system", false);
         MenuItem userFilter = menu.findItem(R.id.menu_app_user);
         MenuItem systemFilter = menu.findItem(R.id.menu_app_system);
         if (userFilter != null) userFilter.setVisible(showSystemFilters);
