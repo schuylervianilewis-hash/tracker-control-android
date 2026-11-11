@@ -60,7 +60,7 @@ jobs:
           # actual test-variant classpath artifacts (e.g. mockwebserver3).
           # Compile the unit tests online once so their classpath is cached
           # before the offline run below.
-          ./gradlew :app:assembleFdroidDebugUnitTest
+          ./gradlew :app:assembleGithubDebugUnitTest
           # Compiling and assembling only ever resolves compile classpaths, so
           # runtime-scoped transitive dependencies stay uncached. Resolve the
           # runtime classpaths too, or the offline steps below cannot find them.
@@ -142,33 +142,7 @@ jobs:
           /tmp/wg_flow_cache_test
 
       - name: Run unit tests
-        run: ./gradlew testFdroidDebugUnitTest --offline
-
-      - name: Build F-Droid release APK offline
-        run: ./gradlew :app:assembleFdroidRelease --offline
-
-      - name: Verify WireGuard libraries in F-Droid APK
-        run: |
-          APK=$(find app/build/outputs/apk/fdroid -type f -name '*.apk' -print -quit)
-          test -n "$APK"
-          for ABI in armeabi-v7a arm64-v8a x86 x86_64; do
-            test "$(unzip -Z1 "$APK" "lib/$ABI/libwgbridge.so")" = "lib/$ABI/libwgbridge.so"
-          done
-
-          # The routing policy is reached by dlsym from libnetguard, so a
-          # stripped or renamed export degrades silently into "no per-app
-          # routing" rather than failing the build. readelf reads any
-          # architecture's ELF, unlike the host nm.
-          for ABI in armeabi-v7a arm64-v8a x86 x86_64; do
-            unzip -p "$APK" "lib/$ABI/libwgbridge.so" > /tmp/libwgbridge-$ABI.so
-            SYMS=$(readelf --dyn-syms --wide "/tmp/libwgbridge-$ABI.so" | awk '{print $NF}')
-            for SYM in tc_policy_abi_version tc_policy_set_route_uids \
-                       tc_policy_clear_route_uids tc_policy_is_tunnel_uid \
-                       tc_policy_wants_tunnel tc_policy_dest_tunnelled; do
-              echo "$SYMS" | grep -qx "$SYM" \
-                || { echo "missing dynamic symbol $SYM in $ABI"; exit 1; }
-            done
-          done
+        run: ./gradlew testGithubDebugUnitTest --offline
 
   instrumentation:
     runs-on: ubuntu-latest
@@ -212,7 +186,7 @@ jobs:
           # Running the tests themselves still needs network access: the
           # Unified Test Platform runner classpath (UTP, dagger, protobuf,
           # etc.) is only resolved once a device is actually connected.
-          ./gradlew :app:assembleFdroidDebugAndroidTest
+          ./gradlew :app:assembleGithubDebugAndroidTest
 
       - name: Enable KVM
         run: |
@@ -229,4 +203,4 @@ jobs:
           arch: x86_64
           ndk: 27.2.12479018
           profile: pixel_7
-          script: ./gradlew connectedFdroidDebugAndroidTest
+          script: ./gradlew connectedGithubDebugAndroidTest

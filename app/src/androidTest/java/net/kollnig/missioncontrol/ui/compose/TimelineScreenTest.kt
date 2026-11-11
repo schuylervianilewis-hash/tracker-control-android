@@ -224,5 +224,11 @@ class TimelineScreenTest {
         override fun onRefresh() {
             refreshes++
         }
+
+        override fun onProtectionToggle(enabled: Boolean) = Unit
+
+        override fun onOpenFeaturePage(title: String) = Unit
+
+        override fun onCloseFeaturePage() = Unit
     }
 }

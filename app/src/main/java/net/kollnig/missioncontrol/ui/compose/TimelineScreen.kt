@@ -812,9 +812,22 @@ private fun DashboardFeatureCard(
     }
 }
 
-/** Empty by design for Phase 6: a title and Back affordance, with no fake controls. */
+/** DNS Changer is functional; the other Phase 6 destinations remain placeholders. */
 @Composable
 private fun FeatureDestinationPage(
+    title: String,
+    callbacks: TimelineScreenCallbacks
+) {
+    val dnsChangerTitle = stringResource(R.string.dashboard_dns_changer)
+    if (title == dnsChangerTitle) {
+        DnsChangerScreen(onBack = callbacks::onCloseFeaturePage)
+    } else {
+        FeaturePlaceholderPage(title, callbacks)
+    }
+}
+
+@Composable
+private fun FeaturePlaceholderPage(
     title: String,
     callbacks: TimelineScreenCallbacks
 ) {
@@ -823,8 +836,6 @@ private fun FeatureDestinationPage(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            // Intercept taps/drags on the blank destination background without
-            // adding a no-op clickable semantics node that would merge the title.
             .pointerInput(Unit) {
                 detectTapGestures(onTap = {})
             }

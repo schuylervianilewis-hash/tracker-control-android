@@ -791,6 +791,12 @@ public class SettingsHostActivity extends AppCompatActivity implements SharedPre
             }
             getPreferenceScreen().findPreference(name).setTitle(
                     getString(R.string.setting_dns, prefs.getString(name, "-")));
+
+            // Editing the legacy Advanced Settings fields is an explicit custom
+            // DNS choice. Clearing them resets the mode only when Custom was
+            // selected; it must not erase a separately selected public provider.
+            DnsChangerConfig.syncLegacyDnsSettings(prefs);
+
             ServiceSinkhole.reload("changed " + name, this, false);
 
         } else if ("doh_enabled".equals(name)) {

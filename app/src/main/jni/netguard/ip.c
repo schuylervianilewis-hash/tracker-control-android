@@ -18,6 +18,7 @@
 */
 
 #include "netguard.h"
+#include <sys/time.h>
 #include "tls.h"
 #include "ip6_ext.h"
 #include "wg_flow_cache.h"
