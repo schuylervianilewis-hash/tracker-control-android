@@ -129,15 +129,22 @@ public class FirewallFragment extends Fragment {
         root.setBackgroundColor(MaterialColors.getColor(root,
                 com.google.android.material.R.attr.colorSurface));
 
+        // Align each compact bulk action with the corresponding per-app policy
+        // column. The weighted leading spacer mirrors the app icon/name area.
         LinearLayout actions = new LinearLayout(context);
         actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setGravity(Gravity.CENTER);
-        actions.addView(globalButton(context, R.string.firewall_block_all, ACTION_BLOCK),
-                new LinearLayout.LayoutParams(0, dp(44), 1f));
-        actions.addView(globalButton(context, R.string.firewall_vpn_all, ACTION_VPN),
-                new LinearLayout.LayoutParams(0, dp(44), 1f));
-        actions.addView(globalButton(context, R.string.firewall_direct_all, ACTION_DIRECT),
-                new LinearLayout.LayoutParams(0, dp(44), 1f));
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.setPadding(dp(6), 0, dp(4), 0);
+        actions.addView(new View(context), new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        View identityGap = new View(context);
+        actions.addView(identityGap, new LinearLayout.LayoutParams(dp(4), 1));
+        actions.addView(globalActionColumn(context, R.string.firewall_block, ACTION_BLOCK),
+                new LinearLayout.LayoutParams(dp(60), ViewGroup.LayoutParams.WRAP_CONTENT));
+        actions.addView(globalActionColumn(context, R.string.firewall_vpn, ACTION_VPN),
+                new LinearLayout.LayoutParams(dp(54), ViewGroup.LayoutParams.WRAP_CONTENT));
+        actions.addView(globalActionColumn(context, R.string.firewall_direct, ACTION_DIRECT),
+                new LinearLayout.LayoutParams(dp(64), ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(actions, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -306,18 +313,44 @@ public class FirewallFragment extends Fragment {
         adapter.setItems(filtered);
     }
 
-    private MaterialButton globalButton(Context context, int title, String action) {
+    private View globalActionColumn(Context context, int heading, String action) {
+        LinearLayout column = new LinearLayout(context);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        TextView label = new TextView(context);
+        label.setText(heading);
+        label.setTextSize(9);
+        label.setGravity(Gravity.CENTER);
+        label.setSingleLine(true);
+        label.setAllCaps(true);
+        label.setTextColor(MaterialColors.getColor(label,
+                com.google.android.material.R.attr.colorOnSurfaceVariant));
+        column.addView(label, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(16)));
+
         MaterialButton button = new MaterialButton(context);
-        button.setText(title);
-        button.setTextSize(11);
+        button.setText(R.string.firewall_all_short);
+        button.setTextSize(10);
         button.setAllCaps(false);
+        button.setMinHeight(0);
+        button.setMinimumHeight(0);
         button.setInsetTop(0);
         button.setInsetBottom(0);
-        button.setCornerRadius(dp(10));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        params.setMargins(dp(2), 0, dp(2), 0);
+        button.setCornerRadius(dp(7));
+        button.setPadding(0, 0, 0, 0);
+        button.setBackgroundTintList(ColorStateList.valueOf(MaterialColors.getColor(
+                button, com.google.android.material.R.attr.colorSecondaryContainer)));
+        button.setTextColor(MaterialColors.getColor(button,
+                com.google.android.material.R.attr.colorOnSecondaryContainer));
+        button.setContentDescription(context.getString(heading) + " " +
+                context.getString(R.string.firewall_all_accessibility));
+        button.setTooltipText(context.getString(heading) + " " +
+                context.getString(R.string.firewall_all_accessibility));
         button.setOnClickListener(view -> confirmGlobalAction(action));
-        return button;
+        column.addView(button, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(28)));
+        return column;
     }
 
     private void confirmGlobalAction(String action) {
