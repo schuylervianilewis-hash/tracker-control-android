@@ -62,6 +62,58 @@
         </menu>
     </item>
     <item
+        android:id="@+id/menu_vpn_saved_profiles"
+        android:title="@string/menu_vpn_saved_profiles" />
+    <item
+        android:id="@+id/menu_vpn_manage_profiles"
+        android:title="@string/setting_wg_profile_manage" />
+    <item
+        android:id="@+id/menu_vpn_import_files"
+        android:title="@string/setting_wg_profile_import_file" />
+    <item
+        android:id="@+id/menu_vpn_providers"
+        android:title="@string/menu_vpn_providers">
+        <menu>
+            <item
+                android:id="@+id/menu_vpn_mullvad"
+                android:title="@string/setting_wg_mullvad_setup" />
+            <item
+                android:id="@+id/menu_vpn_ivpn"
+                android:title="@string/vpn_provider_ivpn" />
+            <item
+                android:id="@+id/menu_vpn_mullvad_account"
+                android:title="@string/vpn_get_mullvad_account" />
+            <item
+                android:id="@+id/menu_vpn_ivpn_account"
+                android:title="@string/vpn_get_ivpn_account" />
+            <item
+                android:id="@+id/menu_vpn_proton"
+                android:title="@string/setting_wg_proton_setup" />
+            <item
+                android:id="@+id/menu_vpn_custom_config"
+                android:title="@string/setting_wg_profile_import" />
+            <item
+                android:id="@+id/menu_vpn_scan_qr"
+                android:title="@string/setting_wg_profile_scan" />
+        </menu>
+    </item>
+    <item
+        android:id="@+id/menu_vpn_route_mode"
+        android:title="@string/setting_wg_route_mode">
+        <menu>
+            <group android:checkableBehavior="single">
+                <item
+                    android:id="@+id/menu_vpn_route_all"
+                    android:checkable="true"
+                    android:title="@string/wg_route_mode_all" />
+                <item
+                    android:id="@+id/menu_vpn_route_selected"
+                    android:checkable="true"
+                    android:title="@string/wg_route_mode_selected" />
+            </group>
+        </menu>
+    </item>
+    <item
         android:id="@+id/menu_log"
         android:title="@string/menu_log"/>
     <item

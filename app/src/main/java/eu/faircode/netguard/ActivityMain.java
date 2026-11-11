@@ -1248,8 +1248,29 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         MenuItem sortItem = menu.findItem(R.id.menu_sort);
         boolean showingApps = currentTab == R.id.nav_apps;
         boolean showingFirewall = currentTab == R.id.nav_firewall;
+        boolean showingVpn = currentTab == R.id.nav_vpn;
         if (filterItem != null) filterItem.setVisible(showingApps || showingFirewall);
         if (sortItem != null) sortItem.setVisible(showingApps || showingFirewall);
+
+        int[] vpnMenuIds = {
+                R.id.menu_vpn_saved_profiles,
+                R.id.menu_vpn_manage_profiles,
+                R.id.menu_vpn_import_files,
+                R.id.menu_vpn_providers,
+                R.id.menu_vpn_route_mode
+        };
+        for (int id : vpnMenuIds) {
+            MenuItem vpnItem = menu.findItem(id);
+            if (vpnItem != null)
+                vpnItem.setVisible(showingVpn);
+        }
+        String routeMode = prefs.getString("wg_route_mode", "all");
+        MenuItem routeAll = menu.findItem(R.id.menu_vpn_route_all);
+        MenuItem routeSelected = menu.findItem(R.id.menu_vpn_route_selected);
+        if (routeAll != null)
+            routeAll.setChecked("all".equals(routeMode));
+        if (routeSelected != null)
+            routeSelected.setChecked("selected".equals(routeMode));
 
         // Firewall owns an independent system-app filter and must not inherit
         // Tracker's global "manage system apps" visibility gate.
@@ -1305,7 +1326,32 @@ public class ActivityMain extends SettingsHostActivity implements SharedPreferen
         Log.i(TAG, "Menu=" + item.getTitle());
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         int itemId = item.getItemId();
-        if (itemId == R.id.menu_app_user)
+        if (itemId == R.id.menu_vpn_route_all || itemId == R.id.menu_vpn_route_selected) {
+            String mode = itemId == R.id.menu_vpn_route_all ? "all" : "selected";
+            if (!mode.equals(prefs.getString("wg_route_mode", "all"))) {
+                prefs.edit().putString("wg_route_mode", mode).apply();
+                ServiceSinkhole.reload("changed wg_route_mode", this, false);
+            }
+            item.setChecked(true);
+            invalidateOptionsMenu();
+            return true;
+        } else if (itemId == R.id.menu_vpn_saved_profiles ||
+                itemId == R.id.menu_vpn_manage_profiles ||
+                itemId == R.id.menu_vpn_import_files ||
+                itemId == R.id.menu_vpn_mullvad ||
+                itemId == R.id.menu_vpn_mullvad_account ||
+                itemId == R.id.menu_vpn_ivpn ||
+                itemId == R.id.menu_vpn_ivpn_account ||
+                itemId == R.id.menu_vpn_proton ||
+                itemId == R.id.menu_vpn_custom_config ||
+                itemId == R.id.menu_vpn_scan_qr) {
+            androidx.fragment.app.Fragment fragment =
+                    getSupportFragmentManager().findFragmentById(R.id.vpnContainer);
+            if (fragment instanceof VpnFragment)
+                return ((VpnFragment) fragment).handleToolbarAction(itemId);
+            Toast.makeText(this, R.string.msg_unavailable, Toast.LENGTH_SHORT).show();
+            return true;
+        } else if (itemId == R.id.menu_app_user)
             return toggleAppFilter(item, "show_user", prefs);
         else if (itemId == R.id.menu_app_system)
             return toggleAppFilter(item, "show_system", prefs);

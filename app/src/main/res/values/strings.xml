@@ -342,6 +342,8 @@
     <string name="vpn_generation_failed">VPN setup failed: %s</string>
     <string name="vpn_retry">Retry</string>
     <string name="vpn_country_selected">OK</string>
+    <string name="menu_vpn_saved_profiles">Saved WireGuard profiles</string>
+    <string name="menu_vpn_providers">VPN providers and setup</string>
     <string name="msg_wg_blocked_title">WireGuard tunnel unavailable</string>
     <string name="msg_wg_blocked">Internet access is blocked while the WireGuard tunnel is unavailable. Disable the WireGuard setting to restore it.</string>
     <!-- The cause comes first so it does not read as a tunnel that never
