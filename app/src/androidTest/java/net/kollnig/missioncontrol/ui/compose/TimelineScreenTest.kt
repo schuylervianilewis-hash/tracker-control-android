@@ -67,6 +67,29 @@ class TimelineScreenTest {
     }
 
     @Test
+    fun dnsChangerFeatureDestinationRendersTheFunctionalScreen() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val model = mutableStateOf(populatedModel())
+        val callbacks = RecordingCallbacks { title ->
+            model.value = model.value.copy(featurePageTitle = title)
+        }
+        composeRule.setContent {
+            TrackerControlTheme {
+                TimelineScreenContent(model.value, callbacks)
+            }
+        }
+
+        // Exercise the same dashboard-card callback path used by a real tap.
+        composeRule.onNodeWithTag("dashboard-card-dns-changer").performClick()
+        composeRule.onNodeWithTag("dashboard-feature-page").assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-automatic").assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-cloudflare").assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-google").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-quad9").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("dns-mode-custom").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun allEmptyVariantsExposeOnlyTheirRelevantAction() {
         val variants = listOf(
             TimelineEmptyState.TRACKER_CONTROL_OFF to null,
@@ -188,7 +211,9 @@ class TimelineScreenTest {
         )
     }
 
-    private class RecordingCallbacks : TimelineScreenCallbacks {
+    private class RecordingCallbacks(
+        private val openFeaturePage: (String) -> Unit = {}
+    ) : TimelineScreenCallbacks {
         var entryClicks = 0
         var openInsights = 0
         var shareInsights = 0
@@ -227,7 +252,7 @@ class TimelineScreenTest {
 
         override fun onProtectionToggle(enabled: Boolean) = Unit
 
-        override fun onOpenFeaturePage(title: String) = Unit
+        override fun onOpenFeaturePage(title: String) = openFeaturePage(title)
 
         override fun onCloseFeaturePage() = Unit
     }
