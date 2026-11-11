@@ -75,6 +75,8 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
     private final List<VpnCountry> ivpnCountryCache = new ArrayList<>();
 
     private boolean loadingCountries;
+    // The VPN tab opens on saved profiles; provider mode is entered only from its toolbar.
+    private String providerFlowMode = MODE_WIREGUARD;
     private boolean progressVisible;
     private boolean countryErrorVisible;
     private String progressMessage = "";
@@ -132,6 +134,10 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
     public void onResume() {
         super.onResume();
         prefs.registerOnSharedPreferenceChangeListener(this);
+        // Returning from Settings/profile management should land on the saved-profile list.
+        providerFlowMode = MODE_WIREGUARD;
+        if (!MODE_WIREGUARD.equals(prefs.getString(PREF_VPN_MODE, MODE_WIREGUARD)))
+            prefs.edit().putString(PREF_VPN_MODE, MODE_WIREGUARD).apply();
         refreshUi();
     }
 
@@ -261,33 +267,12 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
     }
 
     private List<WgProfileManager.Profile> customProfiles() {
-        List<WgProfileManager.Profile> profiles = new ArrayList<>();
-        for (WgProfileManager.Profile profile : manager.getProfiles())
-            if (!"mullvad".equals(profile.provider) && !"ivpn".equals(profile.provider))
-                profiles.add(profile);
-        return profiles;
+        // Provider-generated and manually imported configs share the same profile list.
+        return manager.getProfiles();
     }
 
     private String currentProviderMode() {
-        String mode = prefs.getString(PREF_VPN_MODE, "");
-        if (MODE_MULLVAD.equals(mode) || MODE_IVPN.equals(mode) || MODE_WIREGUARD.equals(mode))
-            return mode;
-
-        WgProfileManager.Profile active = manager.getActiveProfile();
-        if (active != null) {
-            if ("mullvad".equals(active.provider))
-                return MODE_MULLVAD;
-            if ("ivpn".equals(active.provider))
-                return MODE_IVPN;
-            return MODE_WIREGUARD;
-        }
-        if (hasMullvadSetup())
-            return MODE_MULLVAD;
-        if (hasIvpnSetup())
-            return MODE_IVPN;
-        if (!customProfiles().isEmpty())
-            return MODE_WIREGUARD;
-        return MODE_MULLVAD;
+        return providerFlowMode;
     }
 
     private boolean isWireGuardMode() {
@@ -336,8 +321,38 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
                 : getString(R.string.vpn_provider_mullvad);
     }
 
+    /** Dispatches VPN-tab overflow actions while reusing the existing setup/import screens. */
+    public boolean handleToolbarAction(int itemId) {
+        if (itemId == R.id.menu_vpn_saved_profiles) {
+            setProviderMode(MODE_WIREGUARD);
+            return true;
+        } else if (itemId == R.id.menu_vpn_manage_profiles) {
+            openWireGuardProfiles();
+            return true;
+        } else if (itemId == R.id.menu_vpn_import_files) {
+            openWireGuardProfiles(ActivityWireGuardProfiles.SETUP_IMPORT_FILES);
+            return true;
+        } else if (itemId == R.id.menu_vpn_custom_config) {
+            openWireGuardProfiles(ActivityWireGuardProfiles.SETUP_IMPORT);
+            return true;
+        } else if (itemId == R.id.menu_vpn_scan_qr) {
+            openWireGuardProfiles(ActivityWireGuardProfiles.SETUP_SCAN);
+            return true;
+        } else if (itemId == R.id.menu_vpn_mullvad) {
+            openMullvadSetup();
+            return true;
+        } else if (itemId == R.id.menu_vpn_ivpn) {
+            openIvpnSetup();
+            return true;
+        } else if (itemId == R.id.menu_vpn_proton) {
+            openWireGuardProfiles(ActivityWireGuardProfiles.SETUP_PROTON);
+            return true;
+        }
+        return false;
+    }
+
     private void openMullvadSetup() {
-        prefs.edit().putString(PREF_VPN_MODE, MODE_MULLVAD).apply();
+        setProviderMode(MODE_MULLVAD);
         showMullvadSettingsDialog();
     }
 
@@ -347,7 +362,7 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
     }
 
     private void openIvpnSetup() {
-        prefs.edit().putString(PREF_VPN_MODE, MODE_IVPN).apply();
+        setProviderMode(MODE_IVPN);
         showIvpnSettingsDialog(null, "", "", null);
     }
 
@@ -361,6 +376,7 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
     }
 
     private void openWireGuardProfiles(String setup) {
+        providerFlowMode = MODE_WIREGUARD;
         prefs.edit().putString(PREF_VPN_MODE, MODE_WIREGUARD).apply();
         Intent intent = new Intent(requireContext(), ActivityWireGuardProfiles.class);
         if (setup != null)
@@ -369,6 +385,7 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
     }
 
     private void setProviderMode(String mode) {
+        providerFlowMode = mode;
         prefs.edit().putString(PREF_VPN_MODE, mode).apply();
         if (MODE_WIREGUARD.equals(mode)) {
             countryErrorVisible = false;
@@ -386,10 +403,9 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
 
     private void activateCustomProfile(WgProfileManager.Profile profile) {
         manager.setActiveProfile(profile.id);
-        prefs.edit()
-                .putBoolean("wg_enabled", true)
-                .putString(PREF_VPN_MODE, MODE_WIREGUARD)
-                .apply();
+        providerFlowMode = MODE_WIREGUARD;
+        // Selecting a config must not turn the global VPN switch on.
+        prefs.edit().putString(PREF_VPN_MODE, MODE_WIREGUARD).apply();
         ServiceSinkhole.reload("wireguard profile changed", requireContext(), false);
         refreshUi();
     }
@@ -502,10 +518,9 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
                     generated.accountNumber,
                     generated.countryCode,
                     generated.countryName);
-            prefs.edit()
-                    .putBoolean("wg_enabled", true)
-                    .putString(PREF_VPN_MODE, MODE_MULLVAD)
-                    .apply();
+            // Profile generation selects the new config but leaves the global VPN switch unchanged.
+            providerFlowMode = MODE_WIREGUARD;
+            prefs.edit().putString(PREF_VPN_MODE, MODE_WIREGUARD).apply();
             ServiceSinkhole.reload("wireguard profile changed", requireContext(), false);
             generatingCountryCode = "";
             generatingProvider = "";
@@ -532,10 +547,9 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
                     generated.accountNumber,
                     generated.countryCode,
                     generated.countryName);
-            prefs.edit()
-                    .putBoolean("wg_enabled", true)
-                    .putString(PREF_VPN_MODE, MODE_IVPN)
-                    .apply();
+            // Profile generation selects the new config but leaves the global VPN switch unchanged.
+            providerFlowMode = MODE_WIREGUARD;
+            prefs.edit().putString(PREF_VPN_MODE, MODE_WIREGUARD).apply();
             ServiceSinkhole.reload("wireguard profile changed", requireContext(), false);
             generatingCountryCode = "";
             generatingProvider = "";
@@ -847,13 +861,6 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
                 return TYPE_STATUS;
             position--;
 
-            if (isFirstTimeVpnSetup())
-                return TYPE_INTRO;
-
-            if (position == 0)
-                return TYPE_MODE;
-            position--;
-
             if (progressVisible) {
                 if (position == 0)
                     return TYPE_PROGRESS;
@@ -870,15 +877,15 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
                 return TYPE_PROVIDER_SETUP;
 
             if (isWireGuardMode()) {
-                int customCount = customProfiles().size();
-                if (customCount == 0 && position == 0)
+                int profileCount = manager.getProfiles().size();
+                if (profileCount == 0 && position == 0)
                     return TYPE_EMPTY;
-                if (position < customCount)
+                if (position < profileCount)
                     return TYPE_CUSTOM_PROFILE;
             } else if (position < countries.size()) {
                 return TYPE_COUNTRY;
             }
-            return TYPE_FOOTER;
+            return TYPE_EMPTY;
         }
 
         @NonNull
@@ -934,17 +941,14 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
 
         @Override
         public int getItemCount() {
-            if (isFirstTimeVpnSetup())
-                return 2;
-
             int count = listStartPosition();
+            if (showProviderSetup())
+                return count + 1;
             if (isWireGuardMode())
-                count += Math.max(1, customProfiles().size());
-            else if (showProviderSetup())
-                count++;
+                count += Math.max(1, manager.getProfiles().size());
             else
                 count += countries.size();
-            return isWireGuardMode() ? count + 1 : count;
+            return count;
         }
 
         private void bindIntro(IntroViewHolder holder) {
@@ -958,7 +962,7 @@ public class VpnFragment extends Fragment implements SharedPreferences.OnSharedP
         }
 
         private int listStartPosition() {
-            int position = 2;
+            int position = 1;
             if (progressVisible)
                 position++;
             if (!isWireGuardMode() && countryErrorVisible)

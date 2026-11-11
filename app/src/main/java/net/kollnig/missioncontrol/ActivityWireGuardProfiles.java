@@ -56,6 +56,8 @@ public class ActivityWireGuardProfiles extends AppCompatActivity {
     // of hiding it behind the add-profile dialog.
     public static final String EXTRA_SETUP = "setup";
     public static final String SETUP_IMPORT = "import";
+    public static final String SETUP_IMPORT_FILES = "import_files";
+    public static final String SETUP_SCAN = "scan";
     public static final String SETUP_PROTON = "proton";
 
     private static final String PROTON_DASHBOARD_URL =
@@ -130,6 +132,10 @@ public class ActivityWireGuardProfiles extends AppCompatActivity {
                 showProtonDialog();
             else if (SETUP_IMPORT.equals(setup))
                 showProfileDialog(null);
+            else if (SETUP_IMPORT_FILES.equals(setup))
+                startFileImport();
+            else if (SETUP_SCAN.equals(setup))
+                startScan();
         }
     }
 
