@@ -30,6 +30,14 @@ class WgConnectivityMonitorTest {
         fail("monitor did not stop")
     }
 
+    private fun awaitNotRunning(monitor: WgConnectivityMonitor) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+        while (monitor.isRunning() && System.nanoTime() < deadline) {
+            Thread.sleep(1)
+        }
+        assertFalse("monitor should have invalidated its active generation", monitor.isRunning())
+    }
+
     private fun stats() = WgStats(0, 0, 0)
 
     @Test
@@ -363,12 +371,9 @@ class WgConnectivityMonitorTest {
             monitor!!.stop()
             stopReturned.countDown()
         }.start()
-        // stop invalidates the generation before waiting for the callback gate.
-        repeat(1_000) {
-            if (!monitor.isRunning()) return@repeat
-            Thread.yield()
-        }
-        assertFalse(monitor.isRunning())
+        // Poll with a bounded real-time wait: Thread.yield() does not
+        // guarantee that the stopper thread gets scheduled on CI runners.
+        awaitNotRunning(monitor)
         releaseCallback.countDown()
         assertTrue(stopReturned.await(1, TimeUnit.SECONDS))
         assertEquals(0, callbacks.get())
@@ -412,12 +417,8 @@ class WgConnectivityMonitorTest {
         }.start()
         // stop invalidates the generation first, then waits for the callback
         // gate held by beforeCallback. It cannot return while that gate is
-        // unresolved.
-        repeat(1_000) {
-            if (!monitor.isRunning()) return@repeat
-            Thread.yield()
-        }
-        assertFalse(monitor.isRunning())
+        // unresolved. Use a bounded wait rather than scheduler-dependent yields.
+        awaitNotRunning(monitor)
         assertFalse(stopReturned.await(100, TimeUnit.MILLISECONDS))
         releaseProd.countDown()
         assertTrue(stopReturned.await(1, TimeUnit.SECONDS))

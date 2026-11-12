@@ -24,6 +24,8 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.util.Log;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -36,6 +38,7 @@ import androidx.compose.ui.platform.ComposeView;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -104,6 +107,8 @@ public class FirewallFragment extends Fragment {
 
     private SwipeRefreshLayout swipeRefresh;
     private RecyclerView recyclerView;
+    private TextView listStatusView;
+    private int refreshGeneration;
     private FirewallAdapter adapter;
     private String searchQuery = "";
     private String sortMode = FirewallPolicyLogic.SORT_NAME;
@@ -126,6 +131,9 @@ public class FirewallFragment extends Fragment {
 
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.TOP);
+        root.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.setPadding(dp(12), dp(8), dp(12), dp(4));
         root.setBackgroundColor(MaterialColors.getColor(root,
                 com.google.android.material.R.attr.colorSurface));
@@ -149,20 +157,36 @@ public class FirewallFragment extends Fragment {
         root.addView(actions, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+        FrameLayout listContainer = new FrameLayout(context);
         swipeRefresh = new SwipeRefreshLayout(context);
         recyclerView = new RecyclerView(context);
         recyclerView.setLayoutManager(new LinearLayoutManager(context));
         recyclerView.setHasFixedSize(false);
-        recyclerView.setItemViewCacheSize(6);
+        recyclerView.setItemViewCacheSize(20);
         adapter = new FirewallAdapter();
         recyclerView.setAdapter(adapter);
         swipeRefresh.addView(recyclerView, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         swipeRefresh.setOnRefreshListener(this::refresh);
+        listContainer.addView(swipeRefresh, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        listStatusView = new TextView(context);
+        listStatusView.setGravity(Gravity.CENTER);
+        listStatusView.setTextSize(14);
+        listStatusView.setTextColor(MaterialColors.getColor(listStatusView,
+                com.google.android.material.R.attr.colorOnSurfaceVariant));
+        listStatusView.setPadding(dp(24), dp(16), dp(24), dp(16));
+        listStatusView.setVisibility(View.GONE);
+        FrameLayout.LayoutParams statusParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+                Gravity.CENTER);
+        listContainer.addView(listStatusView, statusParams);
+
         LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
         listParams.topMargin = dp(8);
-        root.addView(swipeRefresh, listParams);
+        root.addView(listContainer, listParams);
         return root;
     }
 
@@ -188,10 +212,12 @@ public class FirewallFragment extends Fragment {
     @Override
     public void onDestroyView() {
         destroyed = true;
+        refreshGeneration++;
         blockedTrackerLoadGeneration++;
         protectionController = null;
         swipeRefresh = null;
         recyclerView = null;
+        listStatusView = null;
         adapter = null;
         super.onDestroyView();
     }
@@ -240,29 +266,64 @@ public class FirewallFragment extends Fragment {
     public void refresh() {
         if (!isAdded() || adapter == null)
             return;
-        if (swipeRefresh != null)
-            swipeRefresh.setRefreshing(true);
-        final Context context = requireContext().getApplicationContext();
-        androidx.fragment.app.FragmentActivity activity = getActivity();
+        final androidx.fragment.app.FragmentActivity activity = getActivity();
         if (activity == null)
             return;
+
+        final int generation = ++refreshGeneration;
+        if (swipeRefresh != null)
+            swipeRefresh.setRefreshing(true);
+        if (allRules.isEmpty())
+            showListStatus(getString(R.string.firewall_apps_loading), true);
+
+        final Context context = requireContext().getApplicationContext();
         AsyncTask.execute(() -> {
-            if (InternetPermissionPolicy.reconcile(context))
-                ServiceSinkhole.reload("automatic Internet-permission policy", context, false);
-            List<Rule> result = Rule.getRules(true, true, context);
-            boolean routeAvailable = isRemoteVpnAvailable(context);
+            List<Rule> loadedRules = null;
+            boolean loadedVpnAvailable = false;
+            Throwable loadError = null;
+            try {
+                // Keep the existing automatic permission-policy reconciliation.
+                // This refresh change only isolates Firewall's display inventory;
+                // it does not alter the policy writer or VPN enforcement path.
+                if (InternetPermissionPolicy.reconcile(context))
+                    ServiceSinkhole.reload("automatic Internet-permission policy", context, false);
+                loadedRules = Rule.getFirewallRules(context);
+                if (loadedRules == null)
+                    throw new IllegalStateException("App inventory returned no result");
+                loadedVpnAvailable = isRemoteVpnAvailable(context);
+            } catch (Throwable ex) {
+                loadError = ex;
+                Log.e("FirewallFragment", "Unable to refresh Firewall app list", ex);
+            }
+
+            final List<Rule> result = loadedRules;
+            final boolean routeAvailable = loadedVpnAvailable;
+            final Throwable failure = loadError;
             activity.runOnUiThread(() -> {
-                if (destroyed || !isAdded() || adapter == null)
+                if (generation != refreshGeneration || destroyed || !isAdded() || adapter == null)
                     return;
-                allRules.clear();
-                if (result != null)
+                if (failure == null) {
+                    allRules.clear();
                     allRules.addAll(result);
-                remoteVpnAvailable = routeAvailable;
-                applyFilterAndSort();
+                    remoteVpnAvailable = routeAvailable;
+                    applyFilterAndSort();
+                } else if (allRules.isEmpty()) {
+                    showListStatus(getString(R.string.firewall_apps_load_failed), true);
+                } else {
+                    Toast.makeText(requireContext(), R.string.firewall_apps_load_failed,
+                            Toast.LENGTH_LONG).show();
+                }
                 if (swipeRefresh != null)
                     swipeRefresh.setRefreshing(false);
             });
         });
+    }
+
+    private void showListStatus(String message, boolean visible) {
+        if (listStatusView == null)
+            return;
+        listStatusView.setText(message);
+        listStatusView.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
     private void applyFilterAndSort() {
@@ -280,18 +341,16 @@ public class FirewallFragment extends Fragment {
         for (Rule rule : allRules) {
             if (!rule.pkg)
                 continue;
-            if (rule.system ? !showSystem : !showUser)
-                continue;
-            if (!showNoInternet && !rule.internet)
-                continue;
-            if (!showFrozen && !rule.enabled)
-                continue;
             boolean unprotected = !rule.apply || !rule.tracker_protect;
-            if (showUnprotected && !unprotected)
+            if (!FirewallPolicyLogic.isVisible(rule.system, rule.internet, rule.enabled,
+                    unprotected, showUser, showSystem, showNoInternet, showFrozen,
+                    showUnprotected))
                 continue;
+            String appName = rule.name == null ? "" : rule.name;
+            String packageName = rule.packageName == null ? "" : rule.packageName;
             if (!TextUtils.isEmpty(query)
-                    && !rule.name.toLowerCase(Locale.ROOT).contains(query)
-                    && !rule.packageName.toLowerCase(Locale.ROOT).contains(query))
+                    && !appName.toLowerCase(Locale.ROOT).contains(query)
+                    && !packageName.toLowerCase(Locale.ROOT).contains(query))
                 continue;
             filtered.add(rule);
         }
@@ -312,6 +371,13 @@ public class FirewallFragment extends Fragment {
         Collections.sort(filtered, (left, right) ->
                 comparator.compare(entries.get(left.packageName), entries.get(right.packageName)));
         adapter.setItems(filtered);
+        if (!filtered.isEmpty()) {
+            showListStatus("", false);
+        } else if (allRules.isEmpty()) {
+            showListStatus(getString(R.string.firewall_apps_empty), true);
+        } else {
+            showListStatus(getString(R.string.firewall_apps_no_matches), true);
+        }
     }
 
     private View globalActionColumn(Context context, int heading, String action) {
@@ -934,9 +1000,43 @@ public class FirewallFragment extends Fragment {
         private final List<Rule> items = new ArrayList<>();
 
         void setItems(List<Rule> values) {
+            final List<Rule> nextItems = new ArrayList<>(values);
+            DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+                @Override
+                public int getOldListSize() {
+                    return items.size();
+                }
+
+                @Override
+                public int getNewListSize() {
+                    return nextItems.size();
+                }
+
+                @Override
+                public boolean areItemsTheSame(int oldPosition, int newPosition) {
+                    Rule oldRule = items.get(oldPosition);
+                    Rule newRule = nextItems.get(newPosition);
+                    return oldRule.uid == newRule.uid
+                            && TextUtils.equals(oldRule.packageName, newRule.packageName);
+                }
+
+                @Override
+                public boolean areContentsTheSame(int oldPosition, int newPosition) {
+                    Rule oldRule = items.get(oldPosition);
+                    Rule newRule = nextItems.get(newPosition);
+                    return TextUtils.equals(oldRule.name, newRule.name)
+                            && oldRule.system == newRule.system
+                            && oldRule.internet == newRule.internet
+                            && oldRule.enabled == newRule.enabled
+                            && oldRule.apply == newRule.apply
+                            && oldRule.tracker_protect == newRule.tracker_protect
+                            && oldRule.wg_route == newRule.wg_route
+                            && oldRule.icon == newRule.icon;
+                }
+            });
             items.clear();
-            items.addAll(values);
-            notifyDataSetChanged();
+            items.addAll(nextItems);
+            diff.dispatchUpdatesTo(this);
         }
 
         @Override

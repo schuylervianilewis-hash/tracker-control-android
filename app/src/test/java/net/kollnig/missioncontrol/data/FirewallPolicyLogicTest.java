@@ -12,6 +12,29 @@ import org.junit.Test;
 
 public class FirewallPolicyLogicTest {
     @Test
+    public void firewallVisibilityUsesOnlyItsOwnFilterValues() {
+        // Tracker's global preferences are not inputs to this decision.
+        assertTrue(FirewallPolicyLogic.isVisible(false, true, true, false,
+                true, false, true, false, false));
+        assertTrue(FirewallPolicyLogic.isVisible(false, false, true, false,
+                true, false, true, false, false));
+        assertFalse(FirewallPolicyLogic.isVisible(false, false, true, false,
+                true, false, false, false, false));
+        assertFalse(FirewallPolicyLogic.isVisible(true, true, true, false,
+                true, false, true, false, false));
+        assertTrue(FirewallPolicyLogic.isVisible(true, true, true, false,
+                true, true, true, false, false));
+        assertFalse(FirewallPolicyLogic.isVisible(false, true, false, false,
+                true, false, true, false, false));
+        assertTrue(FirewallPolicyLogic.isVisible(false, true, false, false,
+                true, false, true, true, false));
+        assertFalse(FirewallPolicyLogic.isVisible(false, true, true, false,
+                true, false, true, false, true));
+        assertTrue(FirewallPolicyLogic.isVisible(false, true, true, true,
+                true, false, true, false, true));
+    }
+
+    @Test
     public void policyPriorityPrecedesEverySecondarySort() {
         List<FirewallPolicyLogic.Entry> apps = new ArrayList<>(Arrays.asList(
                 entry(3, "Excluded", "excluded", 100, 1, 99, 99, 999),
