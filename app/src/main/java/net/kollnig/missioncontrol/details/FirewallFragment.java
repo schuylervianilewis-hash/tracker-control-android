@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.ComposeView;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -999,9 +1000,43 @@ public class FirewallFragment extends Fragment {
         private final List<Rule> items = new ArrayList<>();
 
         void setItems(List<Rule> values) {
+            final List<Rule> nextItems = new ArrayList<>(values);
+            DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+                @Override
+                public int getOldListSize() {
+                    return items.size();
+                }
+
+                @Override
+                public int getNewListSize() {
+                    return nextItems.size();
+                }
+
+                @Override
+                public boolean areItemsTheSame(int oldPosition, int newPosition) {
+                    Rule oldRule = items.get(oldPosition);
+                    Rule newRule = nextItems.get(newPosition);
+                    return oldRule.uid == newRule.uid
+                            && TextUtils.equals(oldRule.packageName, newRule.packageName);
+                }
+
+                @Override
+                public boolean areContentsTheSame(int oldPosition, int newPosition) {
+                    Rule oldRule = items.get(oldPosition);
+                    Rule newRule = nextItems.get(newPosition);
+                    return TextUtils.equals(oldRule.name, newRule.name)
+                            && oldRule.system == newRule.system
+                            && oldRule.internet == newRule.internet
+                            && oldRule.enabled == newRule.enabled
+                            && oldRule.apply == newRule.apply
+                            && oldRule.tracker_protect == newRule.tracker_protect
+                            && oldRule.wg_route == newRule.wg_route
+                            && oldRule.icon == newRule.icon;
+                }
+            });
             items.clear();
-            items.addAll(values);
-            notifyDataSetChanged();
+            items.addAll(nextItems);
+            diff.dispatchUpdatesTo(this);
         }
 
         @Override
