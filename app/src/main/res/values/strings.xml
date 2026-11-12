@@ -878,6 +878,10 @@ Sincerely,\n\n]]></string>
     <string name="app_name" translatable="false">VianShield</string>
     <string name="app_name_short" translatable="false">VianShield</string>
 
+    <string name="firewall_apps_loading">Loading installed apps…</string>
+    <string name="firewall_apps_empty">No installed apps were found.</string>
+    <string name="firewall_apps_no_matches">No apps match the current Firewall filters.</string>
+    <string name="firewall_apps_load_failed">Could not load installed apps. Pull down to retry.</string>
     <string name="firewall_block">Block</string>
     <string name="firewall_direct">Direct</string>
     <string name="firewall_direct_all">Direct All</string>
