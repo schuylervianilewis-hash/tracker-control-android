@@ -26,9 +26,11 @@ import org.robolectric.annotation.Config;
 public class FirewallFragmentLayoutTest {
     @Test
     public void firewallListFillsTheScreenBelowTheCompactBulkActions() {
-        FragmentActivity activity = Robolectric.buildActivity(FragmentActivity.class)
-                .create().get();
+        org.robolectric.android.controller.ActivityController<FragmentActivity> controller =
+                Robolectric.buildActivity(FragmentActivity.class);
+        FragmentActivity activity = controller.get();
         activity.setTheme(R.style.AppTheme_NoActionBar);
+        controller.create();
 
         FrameLayout host = new FrameLayout(activity);
         host.setId(View.generateViewId());
@@ -47,8 +49,7 @@ public class FirewallFragmentLayoutTest {
 
         LinearLayout root = (LinearLayout) rootView;
         assertEquals(LinearLayout.VERTICAL, root.getOrientation());
-        assertEquals("Bulk actions must remain above the app list", 0,
-                root.indexOfChild(root.getChildAt(0)));
+        assertEquals(2, root.getChildCount());
         assertTrue(root.getChildAt(0) instanceof LinearLayout);
         assertTrue(root.getChildAt(1) instanceof FrameLayout);
 
