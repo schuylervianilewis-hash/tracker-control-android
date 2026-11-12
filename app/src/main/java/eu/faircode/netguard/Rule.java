@@ -370,6 +370,23 @@ public class Rule {
     }
 
     public static List<Rule> getRules(final boolean all, boolean self, Context context) {
+        return getRulesInternal(all, self, context, false);
+    }
+
+    /**
+     * Build the shared installed-app rule inventory for the Firewall UI.
+     *
+     * Firewall applies its own visibility preferences after loading this data,
+     * so Tracker's global "show unprotected" display preference must not trim
+     * the source list. Existing Tracker callers continue through getRules()
+     * with their original filtering behaviour.
+     */
+    public static List<Rule> getFirewallRules(Context context) {
+        return getRulesInternal(true, true, context, true);
+    }
+
+    private static List<Rule> getRulesInternal(final boolean all, boolean self,
+            Context context, boolean ignoreTrackerUnprotectedFilter) {
         synchronized (context.getApplicationContext()) {
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
             SharedPreferences apply = context.getSharedPreferences("apply", Context.MODE_PRIVATE);
@@ -527,7 +544,7 @@ public class Rule {
 
                         // Check unprotected filter: when enabled, only show apps that are not protected
                         boolean isUnprotected = !rule.apply || !rule.tracker_protect;
-                        if (!show_unprotected || isUnprotected) {
+                        if (ignoreTrackerUnprotectedFilter || !show_unprotected || isUnprotected) {
                             listRules.add(rule);
                         }
                     }
