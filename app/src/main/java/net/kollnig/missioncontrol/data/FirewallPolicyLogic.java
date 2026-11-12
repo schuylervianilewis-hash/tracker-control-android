@@ -31,6 +31,23 @@ public final class FirewallPolicyLogic {
     private FirewallPolicyLogic() {
     }
 
+    /**
+     * Apply Firewall's independent app-list visibility preferences.
+     *
+     * This is presentation-only filtering. It must not inherit Tracker's
+     * show_user/show_system/show_nointernet/show_frozen/show_unprotected
+     * preferences or change any enforcement policy.
+     */
+    public static boolean isVisible(boolean systemApp, boolean hasInternet, boolean enabled,
+            boolean unprotected, boolean showUserApps, boolean showSystemApps,
+            boolean showAppsWithoutInternet, boolean showFrozenApps,
+            boolean showUnprotectedApps) {
+        return (systemApp ? showSystemApps : showUserApps)
+                && (showAppsWithoutInternet || hasInternet)
+                && (showFrozenApps || enabled)
+                && (!showUnprotectedApps || unprotected);
+    }
+
     /** Resolve priority from effective policy. Excluded apps are not Direct. */
     public static int priority(boolean apply, boolean internetBlocked, boolean tunnelled) {
         if (!apply)
