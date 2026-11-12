@@ -30,7 +30,7 @@ public class FirewallFragmentLayoutTest {
                 Robolectric.buildActivity(FragmentActivity.class);
         FragmentActivity activity = controller.get();
         activity.setTheme(R.style.AppTheme_NoActionBar);
-        controller.create();
+        controller.setup();
 
         FrameLayout host = new FrameLayout(activity);
         host.setId(View.generateViewId());
