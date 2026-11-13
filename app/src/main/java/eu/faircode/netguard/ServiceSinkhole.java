@@ -3095,6 +3095,8 @@ public class ServiceSinkhole extends VpnService {
             boolean sawMinimalCategory = false;
             boolean sawMinimalTrackerEvidence = false;
             boolean sawNonMinimalTrackerEvidence = false;
+            String minimalSelectedHostname = null;
+            boolean multipleMinimalHostnames = false;
             long latestNonMinimalExpiry = -1;
             // Expiry of the DNS record minimalCategory was derived from,
             // tracked separately from chosenTime/chosenTtl: the DDG row that
@@ -3150,6 +3152,13 @@ public class ServiceSinkhole extends VpnService {
 
                         if (candidateMinimal != null) {
                             sawMinimalTrackerEvidence = true;
+                            String candidateMinimalHostname = qname != null
+                                    && TrackerList.findMinimalTracker(qname) != null ? qname : aname;
+                            if (minimalSelectedHostname == null)
+                                minimalSelectedHostname = candidateMinimalHostname;
+                            else if (candidateMinimalHostname != null
+                                    && !minimalSelectedHostname.equalsIgnoreCase(candidateMinimalHostname))
+                                multipleMinimalHostnames = true;
                             if (!sawMinimalCategory) {
                                 sawMinimalCategory = true;
                                 minimalCategory = candidateMinimal.category;
@@ -3259,8 +3268,12 @@ public class ServiceSinkhole extends VpnService {
             // simply re-reads the DB.
             boolean confidentHostname = dname != NO_DNAME && sawTrackerEvidence
                     && !sawNonTrackerEvidence && !multipleTrackerHostnames;
+            boolean confidentMinimalHostname = minimalCategory != null
+                    && minimalSelectedHostname != null && !sawNonMinimalTrackerEvidence
+                    && !multipleMinimalHostnames;
             TrackerCache.Entry cacheEntry = new TrackerCache.Entry(dname, tracker,
-                    minimalCategory, expiry, confidentHostname);
+                    minimalCategory, expiry, confidentHostname,
+                    minimalSelectedHostname, confidentMinimalHostname);
             trackerCache.putIfGeneration(daddr, cacheEntry, generationBefore);
             // Keep the exact snapshot used for the decision for logging;
             // the shared cache may be invalidated or replaced meanwhile.
@@ -3290,9 +3303,9 @@ public class ServiceSinkhole extends VpnService {
                 if (BlockingMode.MODE_MINIMAL.equals(blockingMode) || minimalOnlyApp(uid)) {
                     boolean blocked = BlockingModeLogic.shouldBlockMinimalOnly(
                             cached == null ? null : cached.getMinimalCategory());
-                    if (blocked && cached != null && cached.hasConfidentHostname())
+                    if (blocked && cached != null && cached.hasConfidentMinimalHostname())
                         DatabaseHelper.getInstance(ServiceSinkhole.this)
-                                .recordBlockedDomain(cached.getHostname());
+                                .recordBlockedDomain(cached.getMinimalHostname());
                     return blocked;
                 }
 
