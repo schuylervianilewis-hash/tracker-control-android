@@ -3085,6 +3085,8 @@ public class ServiceSinkhole extends VpnService {
             boolean sawFirstRow = false;
             boolean sawTrackerEvidence = false;
             boolean sawNonTrackerEvidence = false;
+            String selectedTrackerHostname = null;
+            boolean multipleTrackerHostnames = false;
             long latestNonTrackerExpiry = -1;
             // Blocking evidence, classified against the DuckDuckGo-only map.
             // Detection above uses the full map in every mode, so the blocking
@@ -3093,6 +3095,8 @@ public class ServiceSinkhole extends VpnService {
             boolean sawMinimalCategory = false;
             boolean sawMinimalTrackerEvidence = false;
             boolean sawNonMinimalTrackerEvidence = false;
+            String minimalSelectedHostname = null;
+            boolean multipleMinimalHostnames = false;
             long latestNonMinimalExpiry = -1;
             // Expiry of the DNS record minimalCategory was derived from,
             // tracked separately from chosenTime/chosenTtl: the DDG row that
@@ -3148,6 +3152,13 @@ public class ServiceSinkhole extends VpnService {
 
                         if (candidateMinimal != null) {
                             sawMinimalTrackerEvidence = true;
+                            String candidateMinimalHostname = qname != null
+                                    && TrackerList.findMinimalTracker(qname) != null ? qname : aname;
+                            if (minimalSelectedHostname == null)
+                                minimalSelectedHostname = candidateMinimalHostname;
+                            else if (candidateMinimalHostname != null
+                                    && !minimalSelectedHostname.equalsIgnoreCase(candidateMinimalHostname))
+                                multipleMinimalHostnames = true;
                             if (!sawMinimalCategory) {
                                 sawMinimalCategory = true;
                                 minimalCategory = candidateMinimal.category;
@@ -3163,6 +3174,11 @@ public class ServiceSinkhole extends VpnService {
 
                         if (candidateTracker != null) {
                             sawTrackerEvidence = true;
+                            if (selectedTrackerHostname == null)
+                                selectedTrackerHostname = candidateDname;
+                            else if (candidateDname != null
+                                    && !selectedTrackerHostname.equalsIgnoreCase(candidateDname))
+                                multipleTrackerHostnames = true;
                             if (tracker == null) {
                                 tracker = candidateTracker;
                                 dname = candidateDname;
@@ -3250,8 +3266,14 @@ public class ServiceSinkhole extends VpnService {
             // stale verdict that a racing insert already made obsolete.
             // Skipping is cheap and correct: the next packet to this IP
             // simply re-reads the DB.
+            boolean confidentHostname = dname != NO_DNAME && sawTrackerEvidence
+                    && !sawNonTrackerEvidence && !multipleTrackerHostnames;
+            boolean confidentMinimalHostname = minimalCategory != null
+                    && minimalSelectedHostname != null && !sawNonMinimalTrackerEvidence
+                    && !multipleMinimalHostnames;
             TrackerCache.Entry cacheEntry = new TrackerCache.Entry(dname, tracker,
-                    minimalCategory, expiry);
+                    minimalCategory, expiry, confidentHostname,
+                    minimalSelectedHostname, confidentMinimalHostname);
             trackerCache.putIfGeneration(daddr, cacheEntry, generationBefore);
             // Keep the exact snapshot used for the decision for logging;
             // the shared cache may be invalidated or replaced meanwhile.
@@ -3278,12 +3300,21 @@ public class ServiceSinkhole extends VpnService {
                 // Minimal mode and minimal-only apps share one verdict: block
                 // exactly the non-Content DuckDuckGo set, whatever else the
                 // broader detection map knows about this flow.
-                if (BlockingMode.MODE_MINIMAL.equals(blockingMode) || minimalOnlyApp(uid))
-                    return BlockingModeLogic.shouldBlockMinimalOnly(
+                if (BlockingMode.MODE_MINIMAL.equals(blockingMode) || minimalOnlyApp(uid)) {
+                    boolean blocked = BlockingModeLogic.shouldBlockMinimalOnly(
                             cached == null ? null : cached.getMinimalCategory());
+                    if (blocked && cached != null && cached.hasConfidentMinimalHostname())
+                        DatabaseHelper.getInstance(ServiceSinkhole.this)
+                                .recordBlockedDomain(cached.getMinimalHostname());
+                    return blocked;
+                }
 
                 TrackerBlocklist b = TrackerBlocklist.getInstance(ServiceSinkhole.this);
-                return b.blockedTracker(uid, tracker);
+                boolean blocked = b.blockedTracker(uid, tracker);
+                if (blocked && cached != null && cached.hasConfidentHostname())
+                    DatabaseHelper.getInstance(ServiceSinkhole.this)
+                            .recordBlockedDomain(cached.getHostname());
+                return blocked;
             }
         }
 

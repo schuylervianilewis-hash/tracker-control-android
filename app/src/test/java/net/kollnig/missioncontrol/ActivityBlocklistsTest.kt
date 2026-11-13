@@ -60,7 +60,10 @@ class ActivityBlocklistsTest {
         val controller = Robolectric.buildActivity(ActivityBlocklists::class.java).setup()
         val activity = controller.get()
         if (BlockingMode.isPlayStoreBuild()) {
-            assertTrue(activity.isFinishing)
+            assertFalse(activity.isFinishing)
+            assertFalse(model(activity).customListsAllowed)
+            assertEquals("minimal", model(activity).blockingMode)
+            assertTrue(model(activity).rows.isEmpty())
             assertTrue(WorkManager.getInstance(context)
                 .getWorkInfosForUniqueWork("CustomBlocklistsDownload").get().isEmpty())
             controller.pause().stop().destroy()

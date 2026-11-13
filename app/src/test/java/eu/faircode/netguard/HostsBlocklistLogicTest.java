@@ -76,6 +76,14 @@ public class HostsBlocklistLogicTest {
     }
 
     @Test
+    public void localHostsImportRequiresUsableHostsEntries() throws Exception {
+        assertTrue(HostsBlocklistLogic.hasUsableEntries(new StringReader(
+                "127.0.0.1 ads.example.com\n0.0.0.0 tracker.example.net\n")));
+        assertFalse(HostsBlocklistLogic.hasUsableEntries(new StringReader(
+                "# comments only\n0.0.0.0\nnot-an-ip ads.example.com\n")));
+    }
+
+    @Test
     public void stripTrailingDotNormalisesFullyQualifiedHostnames() {
         assertEquals("ads.example", HostsBlocklistLogic.stripTrailingDot("ads.example."));
         assertEquals("ads.example", HostsBlocklistLogic.stripTrailingDot("ads.example"));
