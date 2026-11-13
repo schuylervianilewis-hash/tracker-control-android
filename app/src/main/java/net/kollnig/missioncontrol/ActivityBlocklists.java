@@ -1,10 +1,6 @@
 package net.kollnig.missioncontrol;
 
 import android.os.Bundle;
-import android.content.Intent;
-import android.database.Cursor;
-import android.net.Uri;
-import android.provider.OpenableColumns;
 import android.text.InputType;
 import android.view.MenuItem;
 import android.widget.EditText;
@@ -34,7 +30,6 @@ import net.kollnig.missioncontrol.ui.compose.BlocklistsScreenModel;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -50,14 +45,15 @@ public class ActivityBlocklists extends AppCompatActivity {
     private BlocklistsScreenController screenController;
     private boolean downloading;
     private boolean downloadRunning;
-    private static final int REQUEST_IMPORT_HOSTS = 4317;
-    private String pendingLocalUuid;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Util.setTheme(this);
         super.onCreate(savedInstanceState);
-        boolean customListsAllowed = !BlockingMode.isPlayStoreBuild();
+        if (BlockingMode.isPlayStoreBuild()) {
+            finish();
+            return;
+        }
 
         ComposeView composeView = new ComposeView(this);
         // A stable ID gives Compose's saveable state registry a key to persist
@@ -65,13 +61,11 @@ public class ActivityBlocklists extends AppCompatActivity {
         composeView.setId(R.id.compose_blocklists);
         setContentView(composeView);
 
-        getSupportActionBar().setTitle(R.string.dashboard_ad_filter);
+        getSupportActionBar().setTitle(R.string.title_blocklists);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
-        if (customListsAllowed) {
-            manager = BlocklistManager.getInstance(this);
-            manager.migrateIfNeeded();
-        }
+        manager = BlocklistManager.getInstance(this);
+        manager.migrateIfNeeded();
 
         screenController = BlocklistsScreen.install(
                 composeView,
@@ -84,11 +78,7 @@ public class ActivityBlocklists extends AppCompatActivity {
 
                     @Override
                     public void onEdit(String uuid) {
-                        Blocklist item = findBlocklist(uuid);
-                        if (item != null && item.isLocal())
-                            chooseLocalFile(uuid);
-                        else
-                            showAddDialog(uuid);
+                        showAddDialog(uuid);
                     }
 
                     @Override
@@ -104,16 +94,6 @@ public class ActivityBlocklists extends AppCompatActivity {
                     @Override
                     public void onDownload() {
                         downloadBlocklists();
-                    }
-
-                    @Override
-                    public void onImport() {
-                        chooseLocalFile(null);
-                    }
-
-                    @Override
-                    public void onBlockingModeChanged(String mode) {
-                        changeBlockingMode(mode);
                     }
                 });
         WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData(DOWNLOAD_WORK)
@@ -144,13 +124,11 @@ public class ActivityBlocklists extends AppCompatActivity {
 
     private BlocklistsScreenModel buildScreenModel() {
         List<BlocklistRow> rows = new ArrayList<>();
-        if (manager != null) for (Blocklist item : manager.getBlocklists()) {
-            String lastUpdate = item.isLocal() ? getString(R.string.blocklist_local_imported)
-                    : getString(R.string.blocklist_not_downloaded);
+        for (Blocklist item : manager.getBlocklists()) {
+            String lastUpdate = getString(R.string.blocklist_not_downloaded);
             if (item.lastModified > 0) {
                 String last = SimpleDateFormat.getDateTimeInstance().format(new Date(item.lastModified));
-                lastUpdate = item.isLocal() ? getString(R.string.blocklist_local_imported_at, last)
-                        : getString(R.string.msg_last_update, last);
+                lastUpdate = getString(R.string.msg_last_update, last);
             }
 
             String error = item.lastDownloadSuccess ? null :
@@ -158,7 +136,7 @@ public class ActivityBlocklists extends AppCompatActivity {
                             : item.lastErrorMessage);
             rows.add(new BlocklistRow(
                     item.uuid,
-                    item.isLocal() ? item.displayName : item.url,
+                    item.url,
                     lastUpdate,
                     error,
                     item.enabled,
@@ -166,14 +144,11 @@ public class ActivityBlocklists extends AppCompatActivity {
                     getString(R.string.blocklist_delete_description)));
         }
         String notice = null;
-        if (BlockingMode.isPlayStoreBuild())
-            notice = getString(R.string.blocklist_play_notice);
-        else if (PreferenceManager.getDefaultSharedPreferences(this).getBoolean("log_logcat", false))
+        if (PreferenceManager.getDefaultSharedPreferences(this).getBoolean("log_logcat", false))
             notice = getString(R.string.blocklist_research_notice);
         else if (BlockingMode.isMinimalMode(this))
             notice = getString(R.string.blocklist_minimal_notice);
-        return new BlocklistsScreenModel(rows, notice, downloading, downloadRunning,
-                BlockingMode.getMode(this), manager != null);
+        return new BlocklistsScreenModel(rows, notice, downloading, downloadRunning);
     }
 
     private void refreshScreen() {
@@ -181,8 +156,6 @@ public class ActivityBlocklists extends AppCompatActivity {
     }
 
     private Blocklist findBlocklist(String uuid) {
-        if (manager == null)
-            return null;
         for (Blocklist item : manager.getBlocklists()) {
             if (item.uuid.equals(uuid))
                 return item;
@@ -248,78 +221,6 @@ public class ActivityBlocklists extends AppCompatActivity {
         builder.show();
     }
 
-    private void changeBlockingMode(String mode) {
-        if (BlockingMode.isPlayStoreBuild())
-            return;
-        if (!BlockingMode.MODE_MINIMAL.equals(mode)
-                && !BlockingMode.MODE_STANDARD.equals(mode)
-                && !BlockingMode.MODE_STRICT.equals(mode))
-            return;
-        PreferenceManager.getDefaultSharedPreferences(this).edit()
-                .putString(BlockingMode.PREF_BLOCKING_MODE, mode).apply();
-        BlockingMode.applyMode(this);
-        refreshScreen();
-    }
-
-    private void chooseLocalFile(String uuid) {
-        if (manager == null)
-            return;
-        pendingLocalUuid = uuid;
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("text/plain");
-        startActivityForResult(intent, REQUEST_IMPORT_HOSTS);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_IMPORT_HOSTS)
-            return;
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
-            pendingLocalUuid = null;
-            return;
-        }
-
-        Uri uri = data.getData();
-        String displayName = getDisplayName(uri);
-        if (displayName == null || !displayName.toLowerCase(java.util.Locale.ROOT).endsWith(".txt")) {
-            pendingLocalUuid = null;
-            Toast.makeText(this, R.string.blocklist_txt_only, Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        try (InputStream input = getContentResolver().openInputStream(uri)) {
-            if (input == null)
-                throw new java.io.IOException("Could not open selected file");
-            if (pendingLocalUuid == null)
-                manager.importLocalBlocklist(displayName, input);
-            else
-                manager.replaceLocalBlocklist(pendingLocalUuid, displayName, input);
-            applyBlocklists();
-            Toast.makeText(this, R.string.blocklist_import_success, Toast.LENGTH_SHORT).show();
-        } catch (Exception ex) {
-            Toast.makeText(this, getString(R.string.blocklist_import_failed, ex.getMessage()),
-                    Toast.LENGTH_LONG).show();
-        } finally {
-            pendingLocalUuid = null;
-            refreshScreen();
-        }
-    }
-
-    private String getDisplayName(Uri uri) {
-        try (Cursor cursor = getContentResolver().query(uri,
-                new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (index >= 0)
-                    return cursor.getString(index);
-            }
-        } catch (Exception ignored) {
-        }
-        return uri.getLastPathSegment();
-    }
-
     private void updateEnabled(String uuid, boolean enabled) {
         Blocklist item = findBlocklist(uuid);
         if (item == null)
@@ -329,7 +230,7 @@ public class ActivityBlocklists extends AppCompatActivity {
         manager.updateBlocklist(item);
         applyBlocklists();
         refreshScreen();
-        if (enabled && !item.isLocal() && !manager.getBlocklistFile(uuid).exists())
+        if (enabled && !manager.getBlocklistFile(uuid).exists())
             downloadBlocklists();
     }
 
@@ -353,8 +254,6 @@ public class ActivityBlocklists extends AppCompatActivity {
     }
 
     private void applyBlocklists() {
-        if (manager == null)
-            return;
         if (!manager.mergeBlocklists()) {
             Toast.makeText(this, R.string.msg_apply_blocklists_failed, Toast.LENGTH_SHORT).show();
             return;
@@ -364,9 +263,6 @@ public class ActivityBlocklists extends AppCompatActivity {
     }
 
     private void downloadBlocklists() {
-        if (manager == null || manager.getBlocklists().stream()
-                .noneMatch(item -> item.enabled && !item.isLocal()))
-            return;
         OneTimeWorkRequest work = new OneTimeWorkRequest.Builder(HostsDownloadWorker.class)
                 .setConstraints(new Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED).build())
