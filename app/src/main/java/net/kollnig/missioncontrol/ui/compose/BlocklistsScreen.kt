@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,7 +68,9 @@ data class BlocklistsScreenModel @JvmOverloads constructor(
     val rows: List<BlocklistRow>,
     val notice: String? = null,
     val downloading: Boolean = false,
-    val downloadRunning: Boolean = false
+    val downloadRunning: Boolean = false,
+    val blockingMode: String = "minimal",
+    val customListsAllowed: Boolean = true
 )
 
 /** Callback boundary for persistence and dialogs owned by ActivityBlocklists. */
@@ -77,6 +80,8 @@ interface BlocklistsScreenCallbacks {
     fun onEnabledChanged(uuid: String, enabled: Boolean)
     fun onDelete(uuid: String)
     fun onDownload()
+    fun onImport() = Unit
+    fun onBlockingModeChanged(mode: String) = Unit
 }
 
 /** Handle used by ActivityBlocklists to refresh the Compose model. */
@@ -120,7 +125,7 @@ internal fun BlocklistsScreenContent(
             .background(MaterialTheme.colorScheme.background),
         contentWindowInsets = WindowInsets.safeDrawing,
         floatingActionButton = {
-            FloatingActionButton(
+            if (model.customListsAllowed) FloatingActionButton(
                 onClick = { if (!model.downloadRunning) callbacks.onAdd() },
                 modifier = Modifier.testTag("blocklist-add").semantics {
                     if (model.downloadRunning) disabled()
@@ -138,6 +143,7 @@ internal fun BlocklistsScreenContent(
         }
     ) { contentPadding ->
         Column(Modifier.fillMaxSize().padding(contentPadding)) {
+            BlockingModeSelector(model, callbacks)
             model.notice?.let { notice ->
                 Text(
                     text = notice,
@@ -161,13 +167,44 @@ internal fun BlocklistsScreenContent(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-            TextButton(onClick = callbacks::onDownload, enabled = !model.downloading && model.rows.any { it.enabled }) {
-                Text(stringResource(R.string.blocklist_update))
+            if (model.customListsAllowed) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = callbacks::onImport, enabled = !model.downloadRunning) {
+                        Text(stringResource(R.string.blocklist_import_txt))
+                    }
+                    TextButton(onClick = callbacks::onDownload,
+                        enabled = !model.downloading && model.rows.any { it.enabled }) {
+                        Text(stringResource(R.string.blocklist_update))
+                    }
+                }
             }
-            if (model.rows.isEmpty()) {
+            if (model.rows.isEmpty() && model.customListsAllowed) {
                 EmptyBlocklistsContent(PaddingValues())
-            } else {
+            } else if (model.rows.isNotEmpty()) {
                 BlocklistsList(model.rows, PaddingValues(), callbacks, !model.downloadRunning)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BlockingModeSelector(model: BlocklistsScreenModel, callbacks: BlocklistsScreenCallbacks) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Text(stringResource(R.string.blocking_mode_title), style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            val modes = if (model.customListsAllowed) listOf(
+                "minimal" to R.string.blocking_mode_minimal,
+                "standard" to R.string.blocking_mode_standard,
+                "strict" to R.string.blocking_mode_strict
+            ) else listOf("minimal" to R.string.blocking_mode_minimal)
+            modes.forEach { (mode, label) ->
+                FilterChip(
+                    selected = model.blockingMode == mode,
+                    onClick = { if (model.blockingMode != mode) callbacks.onBlockingModeChanged(mode) },
+                    label = { Text(stringResource(label)) },
+                    modifier = Modifier.testTag("blocking-mode-$mode")
+                )
             }
         }
     }
