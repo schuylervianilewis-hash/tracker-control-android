@@ -6,6 +6,10 @@ import java.util.UUID;
 public class Blocklist implements Serializable {
     public String uuid;
     public String url;
+    public static final String SOURCE_REMOTE = "remote";
+    public static final String SOURCE_LOCAL = "local";
+    public String sourceType = SOURCE_REMOTE;
+    public String displayName;
     public boolean enabled;
     public long lastModified;
     public boolean lastDownloadSuccess;
@@ -17,6 +21,10 @@ public class Blocklist implements Serializable {
         this.uuid = UUID.randomUUID().toString();
         this.enabled = true;
         this.lastDownloadSuccess = true;
+    }
+
+    public boolean isLocal() {
+        return SOURCE_LOCAL.equals(sourceType);
     }
 
     public Blocklist(String url, boolean enabled) {
