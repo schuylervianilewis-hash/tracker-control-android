@@ -5,6 +5,8 @@ import android.content.SharedPreferences;
 import android.text.TextUtils;
 import android.util.Log;
 
+import eu.faircode.netguard.HostsBlocklistLogic;
+
 import androidx.preference.PreferenceManager;
 
 import org.json.JSONArray;
@@ -16,6 +18,12 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,7 +82,9 @@ public class BlocklistManager {
                 JSONObject obj = jsonArray.getJSONObject(i);
                 Blocklist item = new Blocklist();
                 item.uuid = obj.getString("uuid");
-                item.url = obj.getString("url");
+                item.url = obj.optString("url", "");
+                item.sourceType = obj.optString("sourceType", Blocklist.SOURCE_REMOTE);
+                item.displayName = obj.optString("displayName", null);
                 item.enabled = obj.optBoolean("enabled", true);
                 item.lastModified = obj.optLong("lastModified", 0);
                 item.lastDownloadSuccess = obj.optBoolean("lastDownloadSuccess", true);
@@ -96,6 +106,8 @@ public class BlocklistManager {
                 JSONObject obj = new JSONObject();
                 obj.put("uuid", item.uuid);
                 obj.put("url", item.url);
+                obj.put("sourceType", item.sourceType);
+                obj.put("displayName", item.displayName);
 
                 obj.put("enabled", item.enabled);
                 obj.put("lastModified", item.lastModified);
@@ -183,6 +195,86 @@ public class BlocklistManager {
         }
     }
 
+    /**
+     * Import a local hosts-format text file into app-private storage.
+     * The caller owns and closes the supplied stream.
+     */
+    public Blocklist importLocalBlocklist(String displayName, InputStream input) throws IOException {
+        Blocklist item = new Blocklist("", true);
+        item.sourceType = Blocklist.SOURCE_LOCAL;
+        item.displayName = cleanDisplayName(displayName);
+        writeLocalFile(item.uuid, input);
+        item.lastModified = System.currentTimeMillis();
+        item.lastDownloadSuccess = true;
+        addBlocklist(item);
+        return item;
+    }
+
+    /** Replace an existing local list after the new file has been validated. */
+    public void replaceLocalBlocklist(String uuid, String displayName, InputStream input) throws IOException {
+        Blocklist item = findBlocklist(uuid);
+        if (item == null || !item.isLocal())
+            throw new IOException("Local blocklist no longer exists");
+        writeLocalFile(uuid, input);
+        item.displayName = cleanDisplayName(displayName);
+        item.lastModified = System.currentTimeMillis();
+        item.lastDownloadSuccess = true;
+        item.lastErrorMessage = null;
+        updateBlocklist(item);
+    }
+
+    private Blocklist findBlocklist(String uuid) {
+        for (Blocklist item : getBlocklists())
+            if (item.uuid.equals(uuid))
+                return item;
+        return null;
+    }
+
+    private String cleanDisplayName(String name) {
+        return TextUtils.isEmpty(name) ? "Imported hosts.txt" : new File(name).getName();
+    }
+
+    private void writeLocalFile(String uuid, InputStream input) throws IOException {
+        File temporary = new File(context.getFilesDir(), "blocklist_" + uuid + ".tmp");
+        File target = getBlocklistFile(uuid);
+        long total = 0;
+        try {
+            try (FileOutputStream output = new FileOutputStream(temporary)) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    total += read;
+                    if (total > 20L * 1024L * 1024L)
+                        throw new IOException("Hosts file exceeds the 20 MB limit");
+                    output.write(buffer, 0, read);
+                }
+            }
+            if (total == 0)
+                throw new IOException("The selected file is empty");
+            try (Reader reader = new InputStreamReader(new FileInputStream(temporary), StandardCharsets.UTF_8)) {
+                if (!HostsBlocklistLogic.hasUsableEntries(reader))
+                    throw new IOException("No valid hosts entries were found");
+            }
+
+            File backup = new File(context.getFilesDir(), "blocklist_" + uuid + ".bak");
+            if (backup.exists() && !backup.delete())
+                throw new IOException("Could not clear the previous import backup");
+            if (target.exists() && !target.renameTo(backup))
+                throw new IOException("Could not preserve the previous hosts file");
+            if (!temporary.renameTo(target)) {
+                if (backup.exists())
+                    backup.renameTo(target);
+                throw new IOException("Could not save the imported hosts file");
+            }
+            if (backup.exists())
+                backup.delete();
+        } catch (IOException | RuntimeException ex) {
+            if (temporary.exists())
+                temporary.delete();
+            throw ex;
+        }
+    }
+
     public File getBlocklistFile(String uuid) {
         return new File(context.getFilesDir(), "blocklist_" + uuid + ".txt");
     }
@@ -203,7 +295,7 @@ public class BlocklistManager {
 
                 File itemFile = getBlocklistFile(item.uuid);
                 if (itemFile.exists() && itemFile.canRead()) {
-                    writer.write("# Blocklist: " + item.url + "\n");
+                    writer.write("# Blocklist: " + (item.isLocal() ? item.displayName : item.url) + "\n");
                     try (BufferedReader reader = new BufferedReader(new FileReader(itemFile))) {
                         String line;
                         while ((line = reader.readLine()) != null) {
