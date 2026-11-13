@@ -79,7 +79,7 @@ public class DatabaseHelperMigrationTest {
 
         helper.onUpgrade(database, 16, 24);
 
-        assertEquals(23, database.getVersion());
+        assertEquals(24, database.getVersion());
         assertTrue(columnExists("access", "sent"));
         assertTrue(columnExists("access", "received"));
         assertTrue(columnExists("access", "connections"));
@@ -117,7 +117,7 @@ public class DatabaseHelperMigrationTest {
 
         helper.onUpgrade(database, 22, 24);
 
-        assertEquals(23, database.getVersion());
+        assertEquals(24, database.getVersion());
         try (Cursor cursor = database.rawQuery("SELECT qname, aname, resource, time FROM dns", null)) {
             assertEquals(1, cursor.getCount());
             assertTrue(cursor.moveToFirst());
