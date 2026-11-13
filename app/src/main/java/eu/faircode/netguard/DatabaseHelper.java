@@ -87,7 +87,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "TrackerControl.Database";
 
     private static final String DB_NAME = "Netguard";
-    private static final int DB_VERSION = 23;
+    private static final int DB_VERSION = 24;
 
     private static boolean once = true;
     // CopyOnWriteArrayList: listeners are added/removed from activity/fragment
@@ -99,6 +99,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static List<LogChangedListener> logChangedListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
     private static List<AccessChangedListener> accessChangedListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
     private static List<ForwardChangedListener> forwardChangedListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static List<BlockedDomainChangedListener> blockedDomainChangedListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private static HandlerThread hthread = null;
     private static Handler handler = null;
@@ -108,6 +109,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private final static int MSG_LOG = 1;
     private final static int MSG_ACCESS = 2;
     private final static int MSG_FORWARD = 3;
+    private final static int MSG_BLOCKED_DOMAIN = 4;
     private static final long NOTIFY_BATCH_MS = 1000;
 
     private SharedPreferences prefs;
@@ -133,6 +135,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     // listeners (no notifyAccessChanged) until the next reader or shutdown.
     private final Runnable accessFlushRunnable = this::flushAccessBatch;
     private final Runnable usageFlushRunnable = this::flushUsageBatch;
+
+    // Coalesce repeated packet hits into one write per hostname per batch.
+    private final Object blockedDomainLock = new Object();
+    private final Map<String, Long> blockedDomainBatch = new LinkedHashMap<>();
+    private boolean blockedDomainFlushScheduled;
+    private final Runnable blockedDomainFlushRunnable = this::flushBlockedDomainBatch;
 
     private static final int USAGE_BATCH_SIZE = 50;
     private static final long USAGE_BATCH_FLUSH_MS = 2000;
@@ -235,6 +243,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         createTableDns(db);
         createTableForward(db);
         createTableApp(db);
+        createTableBlockedDomains(db);
     }
 
     @Override
@@ -329,6 +338,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 ", enabled INTEGER NOT NULL" +
                 ");");
         db.execSQL("CREATE UNIQUE INDEX idx_package ON app(package)");
+    }
+
+    private void createTableBlockedDomains(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE blocked_domain (hostname TEXT PRIMARY KEY, last_blocked INTEGER NOT NULL)");
+        db.execSQL("CREATE INDEX idx_blocked_domain_time ON blocked_domain(last_blocked)");
     }
 
     private boolean columnExists(SQLiteDatabase db, String table, String column) {
@@ -475,6 +489,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 oldVersion = 23;
             }
 
+            if (oldVersion < 24) {
+                createTableBlockedDomains(db);
+                oldVersion = 24;
+            }
+
             if (oldVersion == DB_VERSION) {
                 db.setVersion(oldVersion);
                 db.setTransactionSuccessful();
@@ -494,6 +513,101 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         } finally {
             db.endTransaction();
         }
+    }
+
+    /** Record a confirmed tracker/domain-filter block, coalesced by hostname. */
+    public void recordBlockedDomain(String hostname) {
+        String normalized = BlockedDomainLogic.normalize(hostname);
+        if (normalized == null)
+            return;
+
+        synchronized (blockedDomainLock) {
+            blockedDomainBatch.put(normalized, System.currentTimeMillis());
+            if (!blockedDomainFlushScheduled) {
+                blockedDomainFlushScheduled = true;
+                handler.postDelayed(blockedDomainFlushRunnable, 1000);
+            }
+            if (blockedDomainBatch.size() >= 100) {
+                handler.removeCallbacks(blockedDomainFlushRunnable);
+                handler.post(blockedDomainFlushRunnable);
+            }
+        }
+    }
+
+    private void flushBlockedDomainBatch() {
+        Map<String, Long> pending;
+        synchronized (blockedDomainLock) {
+            if (blockedDomainBatch.isEmpty()) {
+                blockedDomainFlushScheduled = false;
+                return;
+            }
+            pending = new LinkedHashMap<>(blockedDomainBatch);
+            blockedDomainBatch.clear();
+            blockedDomainFlushScheduled = false;
+        }
+
+        boolean changed = false;
+        lock.writeLock().lock();
+        try {
+            SQLiteDatabase db = getWritableDatabase();
+            db.beginTransaction();
+            try {
+                for (Map.Entry<String, Long> entry : pending.entrySet()) {
+                    ContentValues values = new ContentValues();
+                    values.put("hostname", entry.getKey());
+                    values.put("last_blocked", entry.getValue());
+                    db.insertWithOnConflict("blocked_domain", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+                }
+                long cutoff = System.currentTimeMillis() - 30L * 24L * 60L * 60L * 1000L;
+                db.delete("blocked_domain", "last_blocked < ?", new String[]{Long.toString(cutoff)});
+                db.execSQL("DELETE FROM blocked_domain WHERE hostname NOT IN (" +
+                        "SELECT hostname FROM blocked_domain ORDER BY last_blocked DESC LIMIT 1000)");
+                db.setTransactionSuccessful();
+                changed = true;
+            } finally {
+                db.endTransaction();
+            }
+        } catch (Throwable ex) {
+            Log.e(TAG, "Persisting blocked-domain history failed", ex);
+        } finally {
+            lock.writeLock().unlock();
+        }
+
+        if (changed)
+            handler.sendEmptyMessage(MSG_BLOCKED_DOMAIN);
+
+        synchronized (blockedDomainLock) {
+            if (!blockedDomainBatch.isEmpty() && !blockedDomainFlushScheduled) {
+                blockedDomainFlushScheduled = true;
+                handler.postDelayed(blockedDomainFlushRunnable, 1000);
+            }
+        }
+    }
+
+    /** Recent unique domains blocked by the tracker/domain filter, newest first. */
+    public Cursor getRecentBlockedDomains(int limit) {
+        flushBlockedDomainBatch();
+        lock.readLock().lock();
+        try {
+            SQLiteDatabase db = this.getReadableDatabase();
+            int safeLimit = Math.max(1, Math.min(limit, 1000));
+            return db.rawQuery("SELECT hostname, last_blocked FROM blocked_domain " +
+                    "ORDER BY last_blocked DESC LIMIT " + safeLimit, null);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    public interface BlockedDomainChangedListener {
+        void onChanged();
+    }
+
+    public void addBlockedDomainChangedListener(BlockedDomainChangedListener listener) {
+        blockedDomainChangedListeners.add(listener);
+    }
+
+    public void removeBlockedDomainChangedListener(BlockedDomainChangedListener listener) {
+        blockedDomainChangedListeners.remove(listener);
     }
 
     // Log
@@ -1625,6 +1739,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         } else if (msg.what == MSG_FORWARD) {
             for (ForwardChangedListener listener : forwardChangedListeners)
+                try {
+                    listener.onChanged();
+                } catch (Throwable ex) {
+                    Log.e(TAG, ex.toString() + "\n" + Log.getStackTraceString(ex));
+                }
+        } else if (msg.what == MSG_BLOCKED_DOMAIN) {
+            for (BlockedDomainChangedListener listener : blockedDomainChangedListeners)
                 try {
                     listener.onChanged();
                 } catch (Throwable ex) {

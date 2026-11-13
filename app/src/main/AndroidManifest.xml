@@ -204,16 +204,6 @@
         </activity>
 
         <activity
-            android:name="net.kollnig.missioncontrol.ActivityBlockedDomains"
-            android:configChanges="orientation|screenSize"
-            android:label="@string/dashboard_blocked_domains"
-            android:parentActivityName="eu.faircode.netguard.ActivityMain">
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value="eu.faircode.netguard.ActivityMain" />
-        </activity>
-
-        <activity
             android:name="net.kollnig.missioncontrol.ActivityWireGuardProfiles"
             android:configChanges="orientation|screenSize"
             android:label="@string/setting_wg_profile_manage"

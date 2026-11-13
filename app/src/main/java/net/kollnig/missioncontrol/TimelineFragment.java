@@ -182,15 +182,8 @@ public class TimelineFragment extends Fragment {
 
                     @Override
                     public void onOpenFeaturePage(String title) {
-                        if (!isCurrentView(generation))
-                            return;
-                        if (getString(R.string.dashboard_ad_filter).equals(title)) {
-                            startActivity(new Intent(requireContext(), ActivityBlocklists.class));
-                        } else if (getString(R.string.dashboard_blocked_domains).equals(title)) {
-                            startActivity(new Intent(requireContext(), ActivityBlockedDomains.class));
-                        } else if (screenController != null) {
+                        if (isCurrentView(generation) && screenController != null)
                             screenController.openFeaturePage(title);
-                        }
                     }
 
                     @Override
