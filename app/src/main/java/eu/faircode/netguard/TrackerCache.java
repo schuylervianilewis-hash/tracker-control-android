@@ -30,19 +30,12 @@ final class TrackerCache {
         private final Tracker tracker;
         private final String minimalCategory;
         private final long expires;
-        private final boolean hostnameConfident;
 
         Entry(String hostname, Tracker tracker, String minimalCategory, long expires) {
-            this(hostname, tracker, minimalCategory, expires, false);
-        }
-
-        Entry(String hostname, Tracker tracker, String minimalCategory, long expires,
-                boolean hostnameConfident) {
             this.hostname = Objects.requireNonNull(hostname);
             this.tracker = Objects.requireNonNull(tracker);
             this.minimalCategory = minimalCategory;
             this.expires = expires;
-            this.hostnameConfident = hostnameConfident;
         }
 
         String getHostname() {
@@ -62,10 +55,6 @@ final class TrackerCache {
          */
         String getMinimalCategory() {
             return minimalCategory;
-        }
-
-        boolean hasConfidentHostname() {
-            return hostnameConfident;
         }
 
         boolean isExpired(long now) {

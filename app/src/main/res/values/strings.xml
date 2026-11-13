@@ -61,6 +61,8 @@
     <string name="dashboard_dns_changer">DNS Changer</string>
     <string name="dashboard_ad_filter">Ad Filter</string>
     <string name="dashboard_blocked_domains">Blocked Domains</string>
+    <string name="blocked_domains_empty">No domains have been blocked yet.</string>
+    <string name="blocked_domain_last_blocked">Last blocked %1$s</string>
     <string name="dashboard_timeline_heading">Timeline</string>
     <string name="dashboard_back">Back</string>
     <string name="settings_tab_placeholder">The Settings page will move here in a later phase.</string>
