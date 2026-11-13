@@ -52,14 +52,15 @@ import net.kollnig.missioncontrol.R
 
 /** Immutable presentation data for one blocklist row. */
 @Immutable
-data class BlocklistRow(
+data class BlocklistRow @JvmOverloads constructor(
     val uuid: String,
     val url: String,
     val lastUpdate: String?,
     val error: String?,
     val enabled: Boolean,
     val enableContentDescription: String,
-    val deleteContentDescription: String
+    val deleteContentDescription: String,
+    val sourceType: String = "remote"
 )
 
 /** Immutable presentation model for the Blocklists screen. */
@@ -174,7 +175,7 @@ internal fun BlocklistsScreenContent(
                         Text(stringResource(R.string.blocklist_import_txt))
                     }
                     TextButton(onClick = callbacks::onDownload,
-                        enabled = !model.downloading && model.rows.any { it.enabled }) {
+                        enabled = !model.downloading && model.rows.any { it.enabled && it.sourceType == "remote" }) {
                         Text(stringResource(R.string.blocklist_update))
                     }
                 }
@@ -281,9 +282,14 @@ private fun BlocklistListItem(
                 style = MaterialTheme.typography.bodyLarge
             )
         },
-        supportingContent = if (row.lastUpdate != null || row.error != null) {
+        supportingContent = if (row.lastUpdate != null || row.error != null || row.sourceType == "local") {
             {
                 Column {
+                    if (row.sourceType == "local") {
+                        Text(stringResource(R.string.blocklist_local_source),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
                     row.lastUpdate?.let { update ->
                         Text(
                             text = update,
