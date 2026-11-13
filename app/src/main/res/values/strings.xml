@@ -862,6 +862,7 @@ Sincerely,\n\n]]></string>
     <string name="blocking_mode_title">Blocking mode</string>
     <string name="blocklist_import_txt">Import .txt</string>
     <string name="blocklist_local_imported">Imported locally</string>
+    <string name="blocklist_local_source">Local TXT file</string>
     <string name="blocklist_local_imported_at">Imported: %s</string>
     <string name="blocklist_txt_only">Please select a .txt hosts file.</string>
     <string name="blocklist_import_success">Hosts file imported.</string>
