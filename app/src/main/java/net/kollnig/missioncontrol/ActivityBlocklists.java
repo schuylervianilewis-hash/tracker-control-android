@@ -162,8 +162,9 @@ public class ActivityBlocklists extends AppCompatActivity {
                     lastUpdate,
                     error,
                     item.enabled,
-                    getString(R.string.blocklist_enable_description, item.url),
-                    getString(R.string.blocklist_delete_description)));
+                    getString(R.string.blocklist_enable_description, item.isLocal() ? item.displayName : item.url),
+                    getString(R.string.blocklist_delete_description),
+                    item.sourceType));
         }
         String notice = null;
         if (BlockingMode.isPlayStoreBuild())
