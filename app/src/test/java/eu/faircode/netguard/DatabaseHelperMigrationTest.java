@@ -47,9 +47,9 @@ public class DatabaseHelperMigrationTest {
                 + "VALUES (1001, 4, 6, 'tracker.example', 443, 123456, 0, 1, 10, 20, 3)");
         database.setVersion(21);
 
-        helper.onUpgrade(database, 21, 23);
+        helper.onUpgrade(database, 21, 24);
 
-        assertEquals(23, database.getVersion());
+        assertEquals(24, database.getVersion());
         assertTrue(columnExists("access", "uncertain"));
         try (Cursor cursor = database.rawQuery("SELECT * FROM access WHERE uid = 1001", null)) {
             assertTrue(cursor.moveToFirst());
@@ -77,7 +77,7 @@ public class DatabaseHelperMigrationTest {
                 + "VALUES (654321, 'example.org', 'alias.example.org', '1.2.3.4', 60)");
         database.setVersion(16);
 
-        helper.onUpgrade(database, 16, 23);
+        helper.onUpgrade(database, 16, 24);
 
         assertEquals(23, database.getVersion());
         assertTrue(columnExists("access", "sent"));
@@ -115,7 +115,7 @@ public class DatabaseHelperMigrationTest {
                 + "VALUES (5000, 'graph.facebook.com', 'alias.example.com', '203.0.113.25', 60)");
         database.setVersion(22);
 
-        helper.onUpgrade(database, 22, 23);
+        helper.onUpgrade(database, 22, 24);
 
         assertEquals(23, database.getVersion());
         try (Cursor cursor = database.rawQuery("SELECT qname, aname, resource, time FROM dns", null)) {
@@ -133,7 +133,7 @@ public class DatabaseHelperMigrationTest {
         // No access table, so the version 22 step's ALTER TABLE cannot succeed.
         database.setVersion(22);
 
-        assertThrows(SQLiteException.class, () -> helper.onUpgrade(database, 22, 23));
+        assertThrows(SQLiteException.class, () -> helper.onUpgrade(database, 22, 24));
 
         assertEquals(22, database.getVersion());
         assertFalse(database.inTransaction());
