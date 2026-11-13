@@ -91,44 +91,6 @@ public final class HostsBlocklistLogic {
         }
     }
 
-    /**
-     * Validate a local hosts file without resolving names or modifying the active map.
-     */
-    public static boolean hasUsableEntries(Reader reader) throws IOException {
-        BufferedReader br = reader instanceof BufferedReader ? (BufferedReader) reader : new BufferedReader(reader);
-        String line;
-        while ((line = br.readLine()) != null) {
-            int hash = line.indexOf('#');
-            if (hash >= 0)
-                line = line.substring(0, hash);
-            String[] words = line.trim().split("\\s+");
-            if (words.length < 2 || !looksLikeIpLiteral(words[0]))
-                continue;
-            for (int i = 1; i < words.length; i++) {
-                String host = stripTrailingDot(words[i].toLowerCase(Locale.ROOT));
-                if (isValidHostname(host))
-                    return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean looksLikeIpLiteral(String value) {
-        if (value.indexOf(':') >= 0)
-            return value.matches("[0-9a-fA-F:.]+");
-        return value.matches("(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])(?:\\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])){3}");
-    }
-
-    private static boolean isValidHostname(String host) {
-        if (host.length() == 0 || host.length() > 253 || host.indexOf(':') >= 0 || host.matches("[0-9.]+"))
-            return false;
-        for (String label : host.split("\\.", -1))
-            if (label.length() == 0 || label.length() > 63
-                    || !label.matches("[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"))
-                return false;
-        return true;
-    }
-
     private HostsBlocklistLogic() {
     }
 }
