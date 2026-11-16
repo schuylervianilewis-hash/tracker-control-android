@@ -131,6 +131,8 @@ Note: Android only allows one VPN at a time, so TrackerControl cannot run alongs
 
 In combination with F-Droid, this repository uses automated builds and follows a standard Android build pipeline.
 
+The `Build TrackerControl GitHub Debug ARM64 APK` workflow runs on pushes to `master` and `codex/**` branches. It builds and verifies the ARM64 debug APK, then uploads it as the `trackercontrol-github-debug-arm64-v8a` artifact.
+
 You need:
 - Android Studio (with the Android SDK and build tools)
 - Android NDK 29.0.14206865 (r29)

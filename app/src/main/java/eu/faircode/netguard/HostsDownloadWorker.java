@@ -110,10 +110,12 @@ public class HostsDownloadWorker extends Worker {
         boolean anySuccess = false;
         boolean allSuccess = true;
         boolean anyChanged = false;
+        boolean hasRemoteEnabled = false;
 
         for (Blocklist item : lists) {
-            if (!item.enabled)
+            if (!item.enabled || item.isLocal())
                 continue;
+            hasRemoteEnabled = true;
 
             Log.i(TAG, "Downloading " + item.url);
             File tmp = new File(context.getFilesDir(), "blocklist_" + item.uuid + ".tmp");
@@ -159,6 +161,11 @@ public class HostsDownloadWorker extends Worker {
                     connection.disconnect();
                 }
             }
+        }
+
+        if (!hasRemoteEnabled) {
+            Log.i(TAG, "No enabled remote blocklists; local sources are already stored locally");
+            return Result.success();
         }
 
         if (anySuccess) {
