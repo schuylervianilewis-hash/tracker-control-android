@@ -80,7 +80,7 @@
     <string name="domain_whitelist_confirm_title">Whitelist this domain?</string>
     <string name="domain_whitelist_confirm_message">%1$s and its subdomains will be excluded from ad and tracker filtering. App-level internet blocking and other firewall rules will still apply.</string>
     <string name="domain_whitelist_remove_title">Remove whitelist exception?</string>
-    <string name="domain_whitelist_remove_message">Ad and tracker filtering will apply to this domain and its subdomains again.</string>
+    <string name="domain_whitelist_remove_message">This saved exception will be removed. If another whitelisted parent domain also covers this domain, that exception will remain in effect.</string>
     <string name="domain_whitelist_removed">Whitelist exception removed.</string>
     <string name="domain_whitelist_action">Whitelist</string>
     <string name="domain_whitelist_remove_action">Remove</string>
