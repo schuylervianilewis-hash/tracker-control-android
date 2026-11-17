@@ -64,7 +64,8 @@ public final class DomainWhitelist {
             return false;
 
         synchronized (lock) {
-            if (domains.contains(normalized))
+            // Do not add a child entry when an existing parent already covers it.
+            if (matches(domains, normalized))
                 return false;
 
             Set<String> updated = new TreeSet<>(domains);
