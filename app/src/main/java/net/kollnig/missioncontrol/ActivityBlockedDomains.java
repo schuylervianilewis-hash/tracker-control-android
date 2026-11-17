@@ -72,7 +72,7 @@ public class ActivityBlockedDomains extends AppCompatActivity {
             }
         };
         screenController = BlockedDomainsScreen.install(
-                composeView, new BlockedDomainsScreenModel(), callbacks);
+                composeView, new BlockedDomainsScreenModel(new ArrayList<>(), new ArrayList<>(), false), callbacks);
     }
 
     @Override
