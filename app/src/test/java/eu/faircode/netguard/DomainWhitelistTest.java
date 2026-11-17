@@ -61,6 +61,19 @@ public class DomainWhitelistTest {
     }
 
     @Test
+    public void trackerBypassRequiresBothBlockedVerdictAndConfidentHostname() {
+        assertTrue(whitelist.addDomain("example.com"));
+        assertTrue(whitelist.shouldBypassTrackerFilter(
+                true, true, "ads.example.com"));
+        assertFalse(whitelist.shouldBypassTrackerFilter(
+                true, false, "ads.example.com"));
+        assertFalse(whitelist.shouldBypassTrackerFilter(
+                false, true, "ads.example.com"));
+        assertFalse(whitelist.shouldBypassTrackerFilter(
+                true, true, "ads.other.test"));
+    }
+
+    @Test
     public void matchingRejectsInvalidHostnameInput() {
         assertFalse(DomainWhitelist.matches(
                 Collections.singleton("example.com"), "192.0.2.10"));
