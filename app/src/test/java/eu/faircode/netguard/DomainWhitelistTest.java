@@ -49,6 +49,13 @@ public class DomainWhitelistTest {
     }
 
     @Test
+    public void childEntryIsNotDuplicatedWhenParentAlreadyCoversIt() {
+        assertTrue(whitelist.addDomain("example.com"));
+        assertFalse(whitelist.addDomain("ads.example.com"));
+        assertTrue(whitelist.isWhitelisted("ads.example.com"));
+    }
+
+    @Test
     public void removalAndPersistenceWork() {
         assertTrue(whitelist.addDomain("example.com"));
         DomainWhitelist.resetForTests();
