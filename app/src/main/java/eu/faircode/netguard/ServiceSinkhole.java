@@ -3303,10 +3303,10 @@ public class ServiceSinkhole extends VpnService {
                 if (BlockingMode.MODE_MINIMAL.equals(blockingMode) || minimalOnlyApp(uid)) {
                     boolean blocked = BlockingModeLogic.shouldBlockMinimalOnly(
                             cached == null ? null : cached.getMinimalCategory());
-                    boolean whitelisted = blocked && cached != null
-                            && cached.hasConfidentMinimalHostname()
-                            && DomainWhitelist.getInstance(ServiceSinkhole.this)
-                                    .isWhitelisted(cached.getMinimalHostname());
+                    boolean whitelisted = DomainWhitelist.getInstance(ServiceSinkhole.this)
+                            .shouldBypassTrackerFilter(blocked,
+                                    cached != null && cached.hasConfidentMinimalHostname(),
+                                    cached == null ? null : cached.getMinimalHostname());
                     if (blocked && !whitelisted && cached != null
                             && cached.hasConfidentMinimalHostname())
                         DatabaseHelper.getInstance(ServiceSinkhole.this)
@@ -3316,10 +3316,10 @@ public class ServiceSinkhole extends VpnService {
 
                 TrackerBlocklist b = TrackerBlocklist.getInstance(ServiceSinkhole.this);
                 boolean blocked = b.blockedTracker(uid, tracker);
-                boolean whitelisted = blocked && cached != null
-                        && cached.hasConfidentHostname()
-                        && DomainWhitelist.getInstance(ServiceSinkhole.this)
-                                .isWhitelisted(cached.getHostname());
+                boolean whitelisted = DomainWhitelist.getInstance(ServiceSinkhole.this)
+                        .shouldBypassTrackerFilter(blocked,
+                                cached != null && cached.hasConfidentHostname(),
+                                cached == null ? null : cached.getHostname());
                 if (blocked && !whitelisted && cached != null && cached.hasConfidentHostname())
                     DatabaseHelper.getInstance(ServiceSinkhole.this)
                             .recordBlockedDomain(cached.getHostname());
