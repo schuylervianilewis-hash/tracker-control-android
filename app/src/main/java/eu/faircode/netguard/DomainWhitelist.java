@@ -100,6 +100,12 @@ public final class DomainWhitelist {
         return matches(domains, hostname);
     }
 
+    /** A tracker exception is safe only for a blocked verdict with confident hostname evidence. */
+    public boolean shouldBypassTrackerFilter(
+            boolean trackerBlocked, boolean hostnameConfident, String hostname) {
+        return trackerBlocked && hostnameConfident && isWhitelisted(hostname);
+    }
+
     static boolean matches(Set<String> whitelist, String hostname) {
         String normalized = BlockedDomainLogic.normalize(hostname);
         if (normalized == null || whitelist == null || whitelist.isEmpty())
