@@ -7,9 +7,8 @@
 package net.kollnig.missioncontrol.ui.compose
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,13 +36,21 @@ import net.kollnig.missioncontrol.R
 @Immutable
 data class BlockedDomainRow(
     val hostname: String,
-    val lastBlocked: String
+    val lastBlocked: String,
+    val whitelisted: Boolean = false
 )
 
 @Immutable
 data class BlockedDomainsScreenModel(
-    val rows: List<BlockedDomainRow> = emptyList()
+    val rows: List<BlockedDomainRow> = emptyList(),
+    val whitelistedDomains: List<String> = emptyList(),
+    val showingWhitelist: Boolean = false
 )
+
+interface BlockedDomainsScreenCallbacks {
+    fun onBlockedDomainClick(hostname: String)
+    fun onWhitelistedDomainClick(hostname: String)
+}
 
 class BlockedDomainsScreenController internal constructor(
     private val state: MutableState<BlockedDomainsScreenModel>
@@ -57,7 +64,8 @@ object BlockedDomainsScreen {
     @JvmStatic
     fun install(
         composeView: ComposeView,
-        initialModel: BlockedDomainsScreenModel
+        initialModel: BlockedDomainsScreenModel,
+        callbacks: BlockedDomainsScreenCallbacks
     ): BlockedDomainsScreenController {
         val state = mutableStateOf(initialModel)
         composeView.setViewCompositionStrategy(
@@ -65,7 +73,7 @@ object BlockedDomainsScreen {
         )
         composeView.setContent {
             TrackerControlTheme {
-                BlockedDomainsScreenContent(state.value)
+                BlockedDomainsScreenContent(state.value, callbacks)
             }
         }
         return BlockedDomainsScreenController(state)
@@ -73,19 +81,48 @@ object BlockedDomainsScreen {
 }
 
 @Composable
-internal fun BlockedDomainsScreenContent(model: BlockedDomainsScreenModel) {
-    if (model.rows.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-                .padding(32.dp).testTag("blocked-domains-empty"),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                stringResource(R.string.blocked_domains_empty),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyLarge
+internal fun BlockedDomainsScreenContent(
+    model: BlockedDomainsScreenModel,
+    callbacks: BlockedDomainsScreenCallbacks
+) {
+    if (model.showingWhitelist) {
+        if (model.whitelistedDomains.isEmpty()) {
+            EmptyDomainList(
+                message = stringResource(R.string.whitelisted_domains_empty),
+                tag = "whitelisted-domains-empty"
             )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .testTag("whitelisted-domains-list"),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                items(model.whitelistedDomains, key = { it }) { hostname ->
+                    ListItem(
+                        headlineContent = {
+                            Text(hostname, fontWeight = FontWeight.Medium)
+                        },
+                        supportingContent = {
+                            Text(
+                                stringResource(R.string.whitelisted_domain_remove_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { callbacks.onWhitelistedDomainClick(hostname) }
+                            .testTag("whitelisted-domain-$hostname")
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
         }
+    } else if (model.rows.isEmpty()) {
+        EmptyDomainList(
+            message = stringResource(R.string.blocked_domains_empty),
+            tag = "blocked-domains-empty"
+        )
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
@@ -98,13 +135,41 @@ internal fun BlockedDomainsScreenContent(model: BlockedDomainsScreenModel) {
                         Text(row.hostname, fontWeight = FontWeight.Medium)
                     },
                     supportingContent = {
-                        Text(row.lastBlocked, style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (row.whitelisted)
+                                stringResource(
+                                    R.string.blocked_domain_whitelisted_last_blocked,
+                                    row.lastBlocked
+                                )
+                            else
+                                row.lastBlocked,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     },
-                    modifier = Modifier.fillMaxWidth().testTag("blocked-domain-${row.hostname}")
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable(enabled = !row.whitelisted) {
+                            callbacks.onBlockedDomainClick(row.hostname)
+                        }
+                        .testTag("blocked-domain-${row.hostname}")
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyDomainList(message: String, tag: String) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(32.dp).testTag(tag),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            message,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge
+        )
     }
 }
