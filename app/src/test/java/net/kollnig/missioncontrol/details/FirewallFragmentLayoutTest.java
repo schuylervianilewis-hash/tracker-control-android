@@ -8,10 +8,12 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 
 import androidx.fragment.app.FragmentActivity;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import com.google.android.material.button.MaterialButton;
 
 import net.kollnig.missioncontrol.R;
 
@@ -25,7 +27,7 @@ import org.robolectric.annotation.Config;
 @Config(sdk = 35)
 public class FirewallFragmentLayoutTest {
     @Test
-    public void firewallListFillsTheScreenBelowTheCompactBulkActions() {
+    public void firewallListFillsTheScreenBelowTheOriginalBulkActions() {
         org.robolectric.android.controller.ActivityController<FragmentActivity> controller =
                 Robolectric.buildActivity(FragmentActivity.class);
         FragmentActivity activity = controller.get();
@@ -51,20 +53,32 @@ public class FirewallFragmentLayoutTest {
         assertEquals(LinearLayout.VERTICAL, root.getOrientation());
         assertEquals(2, root.getChildCount());
         assertTrue(root.getChildAt(0) instanceof LinearLayout);
-        assertTrue(root.getChildAt(1) instanceof FrameLayout);
+        assertTrue(root.getChildAt(1) instanceof SwipeRefreshLayout);
+
+        LinearLayout actions = (LinearLayout) root.getChildAt(0);
+        assertEquals(3, actions.getChildCount());
+        assertBulkButton(activity, actions, 0, R.string.firewall_block_all);
+        assertBulkButton(activity, actions, 1, R.string.firewall_vpn_all);
+        assertBulkButton(activity, actions, 2, R.string.firewall_direct_all);
 
         LinearLayout.LayoutParams listParams =
                 (LinearLayout.LayoutParams) root.getChildAt(1).getLayoutParams();
         assertEquals(1f, listParams.weight, 0f);
         assertEquals(0, listParams.height);
 
-        FrameLayout listContainer = (FrameLayout) root.getChildAt(1);
-        assertEquals(2, listContainer.getChildCount());
-        assertTrue(listContainer.getChildAt(0) instanceof SwipeRefreshLayout);
-        assertTrue(listContainer.getChildAt(1) instanceof TextView);
+        SwipeRefreshLayout swipeRefresh = (SwipeRefreshLayout) root.getChildAt(1);
+        assertEquals(1, swipeRefresh.getChildCount());
+        assertTrue(swipeRefresh.getChildAt(0) instanceof RecyclerView);
         assertEquals(ViewGroup.LayoutParams.MATCH_PARENT,
-                listContainer.getChildAt(0).getLayoutParams().width);
+                swipeRefresh.getChildAt(0).getLayoutParams().width);
         assertEquals(ViewGroup.LayoutParams.MATCH_PARENT,
-                listContainer.getChildAt(0).getLayoutParams().height);
+                swipeRefresh.getChildAt(0).getLayoutParams().height);
+    }
+
+    private static void assertBulkButton(FragmentActivity activity, LinearLayout actions,
+            int index, int expectedText) {
+        assertTrue(actions.getChildAt(index) instanceof MaterialButton);
+        MaterialButton button = (MaterialButton) actions.getChildAt(index);
+        assertEquals(activity.getString(expectedText), button.getText().toString());
     }
 }
