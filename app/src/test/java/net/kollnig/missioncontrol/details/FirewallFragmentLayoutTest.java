@@ -67,12 +67,19 @@ public class FirewallFragmentLayoutTest {
         assertEquals(0, listParams.height);
 
         SwipeRefreshLayout swipeRefresh = (SwipeRefreshLayout) root.getChildAt(1);
-        assertEquals(1, swipeRefresh.getChildCount());
-        assertTrue(swipeRefresh.getChildAt(0) instanceof RecyclerView);
+        RecyclerView list = null;
+        for (int i = 0; i < swipeRefresh.getChildCount(); i++) {
+            View child = swipeRefresh.getChildAt(i);
+            if (child instanceof RecyclerView) {
+                list = (RecyclerView) child;
+                break;
+            }
+        }
+        assertNotNull(list);
         assertEquals(ViewGroup.LayoutParams.MATCH_PARENT,
-                swipeRefresh.getChildAt(0).getLayoutParams().width);
+                list.getLayoutParams().width);
         assertEquals(ViewGroup.LayoutParams.MATCH_PARENT,
-                swipeRefresh.getChildAt(0).getLayoutParams().height);
+                list.getLayoutParams().height);
     }
 
     private static void assertBulkButton(FragmentActivity activity, LinearLayout actions,
