@@ -3303,18 +3303,27 @@ public class ServiceSinkhole extends VpnService {
                 if (BlockingMode.MODE_MINIMAL.equals(blockingMode) || minimalOnlyApp(uid)) {
                     boolean blocked = BlockingModeLogic.shouldBlockMinimalOnly(
                             cached == null ? null : cached.getMinimalCategory());
-                    if (blocked && cached != null && cached.hasConfidentMinimalHostname())
+                    boolean whitelisted = blocked && cached != null
+                            && cached.hasConfidentMinimalHostname()
+                            && DomainWhitelist.getInstance(ServiceSinkhole.this)
+                                    .isWhitelisted(cached.getMinimalHostname());
+                    if (blocked && !whitelisted && cached != null
+                            && cached.hasConfidentMinimalHostname())
                         DatabaseHelper.getInstance(ServiceSinkhole.this)
                                 .recordBlockedDomain(cached.getMinimalHostname());
-                    return blocked;
+                    return blocked && !whitelisted;
                 }
 
                 TrackerBlocklist b = TrackerBlocklist.getInstance(ServiceSinkhole.this);
                 boolean blocked = b.blockedTracker(uid, tracker);
-                if (blocked && cached != null && cached.hasConfidentHostname())
+                boolean whitelisted = blocked && cached != null
+                        && cached.hasConfidentHostname()
+                        && DomainWhitelist.getInstance(ServiceSinkhole.this)
+                                .isWhitelisted(cached.getHostname());
+                if (blocked && !whitelisted && cached != null && cached.hasConfidentHostname())
                     DatabaseHelper.getInstance(ServiceSinkhole.this)
                             .recordBlockedDomain(cached.getHostname());
-                return blocked;
+                return blocked && !whitelisted;
             }
         }
 
