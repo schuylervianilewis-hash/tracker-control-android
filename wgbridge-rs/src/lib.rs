@@ -23,6 +23,8 @@ pub mod keys;
 pub mod policy;
 // Isolated aggregate-shaping and reverse-owner feasibility prototype; not wired to traffic.
 pub mod speed_shaping_prototype;
+// Cross-language socketpair/UID and non-blocking scheduling integration tests.
+pub mod speed_shaping_integration;
 // The C ABI the NetGuard engine links against. It lives in this crate, not
 // in tc-dns, so the cdylib itself defines the exported symbols rather than
 // inheriting them from an rlib dependency (see app/gradle/wgbridge.gradle).
