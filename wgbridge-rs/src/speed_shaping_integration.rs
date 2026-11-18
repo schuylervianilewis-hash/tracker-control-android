@@ -58,7 +58,12 @@ pub unsafe extern "C" fn tc_speed_prototype_decode_envelope(
     uid_out: *mut i32,
     packet_len_out: *mut usize,
 ) -> i32 {
-    if data.is_null() || uid_out.is_null() || packet_len_out.is_null() {
+    if data.is_null()
+        || uid_out.is_null()
+        || packet_len_out.is_null()
+        || data_len < ENVELOPE_HEADER_LEN
+        || data_len > ENVELOPE_HEADER_LEN + MAX_PACKET_LEN
+    {
         return -1;
     }
     // SAFETY: the C caller contract requires data_len readable bytes.
@@ -168,7 +173,12 @@ impl BoundedPendingQueue {
             return Err(packet);
         }
         self.queued_bytes = next_bytes;
-        self.entries.push_back((ready_at_ns, packet));
+        let position = self
+            .entries
+            .iter()
+            .position(|(deadline, _)| *deadline > ready_at_ns)
+            .unwrap_or(self.entries.len());
+        self.entries.insert(position, (ready_at_ns, packet));
         Ok(())
     }
 
