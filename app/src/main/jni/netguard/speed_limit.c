@@ -6,6 +6,43 @@
 #define NANOS_PER_SECOND UINT64_C(1000000000)
 #define MIN_BURST_BYTES UINT64_C(2920) /* two conservative TCP MSS-sized chunks */
 
+/*
+ * Calculate floor(a * b / divisor) and its remainder without a wide integer.
+ * The caller guarantees a < divisor and divisor != 0, so the quotient fits
+ * in uint64_t. The bitwise long-division loop avoids overflowing either the
+ * intermediate product or the doubled remainder.
+ */
+static uint64_t mul_div_rem_u64(uint64_t a, uint64_t b,
+                                uint64_t divisor, uint64_t *remainder) {
+    uint64_t quotient = 0;
+    uint64_t rem = 0;
+
+    for (int bit = 63; bit >= 0; bit--) {
+        uint64_t carry = 0;
+
+        if (rem >= divisor - rem) {
+            rem -= divisor - rem;
+            carry = 1;
+        } else {
+            rem += rem;
+        }
+        quotient = quotient * 2 + carry;
+
+        if ((b >> bit) & UINT64_C(1)) {
+            if (a != 0 && rem >= divisor - a) {
+                rem -= divisor - a;
+                quotient++;
+            } else {
+                rem += a;
+            }
+        }
+    }
+
+    if (remainder != NULL)
+        *remainder = rem;
+    return quotient;
+}
+
 uint64_t speed_bucket_burst_capacity(uint64_t rate_bytes_per_sec) {
     if (rate_bytes_per_sec == 0)
         return 0;
@@ -37,22 +74,54 @@ static void refill(struct speed_bucket *bucket, uint64_t now_ns) {
     }
 
     /*
-     * Use a 128-bit intermediate so elapsed_ns * rate cannot overflow before
-     * division. Keep the fractional numerator between calls; otherwise small
-     * time slices would systematically under-credit low-rate buckets.
+     * Split elapsed time into whole seconds and a sub-second remainder.
+     * Saturate against available bucket room before multiplying whole seconds.
+     * The fractional product is evaluated with overflow-safe long division.
      */
-    __uint128_t earned_numerator =
-            (__uint128_t) elapsed_ns * bucket->rate_bytes_per_sec +
-            bucket->refill_remainder;
     uint64_t room = bucket->capacity_bytes - bucket->tokens;
-    __uint128_t earned_wide = earned_numerator / NANOS_PER_SECOND;
-    if (earned_wide >= room) {
+    uint64_t whole_seconds = elapsed_ns / NANOS_PER_SECOND;
+    uint64_t fractional_ns = elapsed_ns % NANOS_PER_SECOND;
+    uint64_t rate = bucket->rate_bytes_per_sec;
+
+    if (whole_seconds != 0) {
+        uint64_t seconds_to_fill = room / rate;
+        if (room % rate != 0)
+            seconds_to_fill++;
+        if (whole_seconds >= seconds_to_fill) {
+            bucket->tokens = bucket->capacity_bytes;
+            bucket->refill_remainder = 0;
+            return;
+        }
+    }
+
+    uint64_t earned_whole = whole_seconds * rate;
+    uint64_t fractional_remainder = 0;
+    uint64_t earned_fraction =
+            mul_div_rem_u64(fractional_ns, rate, NANOS_PER_SECOND,
+                            &fractional_remainder);
+
+    /* Preserve fractional credit across calls without overflowing. */
+    if (fractional_remainder >=
+            NANOS_PER_SECOND - bucket->refill_remainder) {
+        fractional_remainder -=
+                NANOS_PER_SECOND - bucket->refill_remainder;
+        if (earned_fraction == UINT64_MAX) {
+            bucket->tokens = bucket->capacity_bytes;
+            bucket->refill_remainder = 0;
+            return;
+        }
+        earned_fraction++;
+    } else {
+        fractional_remainder += bucket->refill_remainder;
+    }
+
+    uint64_t remaining_room = room - earned_whole;
+    if (earned_fraction >= remaining_room) {
         bucket->tokens = bucket->capacity_bytes;
         bucket->refill_remainder = 0;
     } else {
-        bucket->tokens += (uint64_t) earned_wide;
-        bucket->refill_remainder =
-                (uint64_t) (earned_numerator % NANOS_PER_SECOND);
+        bucket->tokens += earned_whole + earned_fraction;
+        bucket->refill_remainder = fractional_remainder;
     }
 }
 
@@ -118,10 +187,33 @@ uint64_t speed_bucket_wait_ns(struct speed_bucket *bucket,
         return UINT64_MAX;
 
     uint64_t deficit = bytes - bucket->tokens;
-    __uint128_t numerator = (__uint128_t) deficit * NANOS_PER_SECOND;
     uint64_t rate = bucket->rate_bytes_per_sec;
-    __uint128_t wait = (numerator + rate - 1) / rate;
-    return wait > UINT64_MAX ? UINT64_MAX : (uint64_t) wait;
+
+    /*
+     * Split the numerator before multiplication. deficit / rate is bounded
+     * by the minimum burst size (2920); the fractional term uses safe
+     * multiply/divide with an exact remainder for ceiling to nanoseconds.
+     */
+    uint64_t whole_seconds = deficit / rate;
+    if (whole_seconds > UINT64_MAX / NANOS_PER_SECOND)
+        return UINT64_MAX;
+
+    uint64_t wait = whole_seconds * NANOS_PER_SECOND;
+    uint64_t fractional_remainder = 0;
+    uint64_t fractional_wait =
+            mul_div_rem_u64(deficit % rate, NANOS_PER_SECOND, rate,
+                            &fractional_remainder);
+
+    if (wait > UINT64_MAX - fractional_wait)
+        return UINT64_MAX;
+    wait += fractional_wait;
+
+    if (fractional_remainder != 0) {
+        if (wait == UINT64_MAX)
+            return UINT64_MAX;
+        wait++;
+    }
+    return wait;
 }
 
 int speed_bucket_consume(struct speed_bucket *bucket,
