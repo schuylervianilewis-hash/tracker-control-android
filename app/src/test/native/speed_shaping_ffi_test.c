@@ -88,17 +88,18 @@ int main(int argc, char **argv) {
         ssize_t got = recv(sockets[1], received, sizeof(received), 0);
         CHECK(got == (ssize_t) sizeof(envelope), "socketpair preserves envelope datagram boundary");
 
-        int32_t uid = -1;
-        size_t packet_len = 0;
-        CHECK(decode(received, (size_t) got, &uid, &packet_len) == 0,
-              "Rust decoder accepts C socketpair envelope");
-        CHECK(uid == 12345, "Rust decoder recovers trusted C-side UID");
-        CHECK(packet_len == sizeof(packet), "Rust decoder recovers raw IP packet length");
-        CHECK(memcmp(received + HEADER_LEN, packet, sizeof(packet)) == 0,
-              "raw IP packet bytes remain unchanged");
-
-        CHECK(decode(received, (size_t) got - 1, &uid, &packet_len) == -1,
-              "truncated envelope is rejected");
+        if (got == (ssize_t) sizeof(envelope)) {
+            int32_t uid = -1;
+            size_t packet_len = 0;
+            CHECK(decode(received, (size_t) got, &uid, &packet_len) == 0,
+                  "Rust decoder accepts C socketpair envelope");
+            CHECK(uid == 12345, "Rust decoder recovers trusted C-side UID");
+            CHECK(packet_len == sizeof(packet), "Rust decoder recovers raw IP packet length");
+            CHECK(memcmp(received + HEADER_LEN, packet, sizeof(packet)) == 0,
+                  "raw IP packet bytes remain unchanged");
+            CHECK(decode(received, (size_t) got - 1, &uid, &packet_len) == -1,
+                  "truncated envelope is rejected");
+        }
         close(sockets[0]);
         close(sockets[1]);
     }
