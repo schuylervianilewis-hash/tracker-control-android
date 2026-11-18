@@ -141,6 +141,15 @@ jobs:
             app/src/test/native/wg_flow_cache_test.c
           /tmp/wg_flow_cache_test
 
+      - name: Run speed limiter host tests
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -Iapp/src/main/jni/netguard \
+            -o /tmp/speed_limit_test \
+            app/src/test/native/speed_limit_test.c \
+            app/src/main/jni/netguard/speed_limit.c
+          /tmp/speed_limit_test
+
       - name: Run unit tests
         run: ./gradlew testGithubDebugUnitTest --offline
 
