@@ -117,6 +117,34 @@ static void test_large_elapsed_refill_saturates_without_integer_wrap(void) {
           "large elapsed-time multiplication saturates instead of wrapping");
 }
 
+static void test_portable_arithmetic_at_extreme_rates(void) {
+    struct speed_bucket bucket;
+    uint64_t rate = UINT64_MAX / 2;
+    speed_bucket_init(&bucket, rate, 0);
+    CHECK(speed_bucket_consume(&bucket, bucket.capacity_bytes, 0),
+          "drain extreme-rate bucket");
+
+    uint64_t first_credit = rate / UINT64_C(1000000000);
+    CHECK(speed_bucket_available(&bucket, 1) == first_credit,
+          "sub-second refill handles rates near UINT64_MAX exactly");
+    uint64_t after_one_ns = speed_bucket_available(&bucket, 2);
+    CHECK(after_one_ns == first_credit * 2 + 1,
+          "fractional remainder carries across extreme-rate intervals");
+
+    speed_bucket_init(&bucket, rate, 0);
+    CHECK(speed_bucket_consume(&bucket, bucket.capacity_bytes, 0),
+          "drain extreme-rate wait bucket");
+    CHECK(speed_bucket_wait_ns(&bucket, 1, 0) == 1,
+          "one byte at an extreme rate rounds up to one nanosecond");
+
+    speed_bucket_init(&bucket, 1, 0);
+    CHECK(speed_bucket_consume(&bucket, 2920, 0),
+          "drain minimum-capacity low-rate bucket");
+    CHECK(speed_bucket_wait_ns(&bucket, 2920, 0) ==
+                  UINT64_C(2920000000000),
+          "low-rate wait calculation avoids overflowing the numerator");
+}
+
 static void test_monotonic_clock_regression_is_harmless(void) {
     struct speed_bucket bucket;
     speed_bucket_init(&bucket, 12500, 1000);
@@ -135,6 +163,7 @@ int main(void) {
     test_refill_caps_at_burst_capacity();
     test_live_rate_update_preserves_credit_safely();
     test_large_elapsed_refill_saturates_without_integer_wrap();
+    test_portable_arithmetic_at_extreme_rates();
     test_monotonic_clock_regression_is_harmless();
 
     if (failures != 0) {
