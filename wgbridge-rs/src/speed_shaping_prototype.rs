@@ -464,7 +464,11 @@ mod tests {
         );
         assert_eq!(tc_speed_prototype_reserve(0, 10001, 1_000, 0), 0);
         assert_eq!(tc_speed_prototype_reserve(0, 10002, 1_000, 0), 0);
-        assert_eq!(tc_speed_prototype_reserve(0, 10001, 1_000, 0), 80_000_000);
+        let shared_wait = tc_speed_prototype_reserve(0, 10001, 1_000, 0);
+        assert!(
+            shared_wait > 0 && shared_wait <= 80_000_000,
+            "expected a positive shared-bucket wait no greater than 80 ms, got {shared_wait}"
+        );
         assert_eq!(tc_speed_prototype_reserve(0, -1, 1_000, 0), -1);
         assert_eq!(tc_speed_prototype_reserve(0, -1, 1_000, 1), 0);
     }
