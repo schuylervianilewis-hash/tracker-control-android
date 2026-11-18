@@ -79,10 +79,58 @@ pub unsafe extern "C" fn tc_speed_prototype_decode_envelope(
     0
 }
 
-/// Extracts a TCP/UDP 5-tuple from a complete, unfragmented IPv4 or IPv6
-/// packet. IPv6 extension headers and fragmented packets are intentionally
-/// rejected by this prototype; production attribution must handle them or
-/// fail closed rather than invent an owner.
+/// Walks the same bounded, plaintext IPv6 extension-header subset as
+/// NetGuard's ip6_skip_ext_headers(). Fragment, ESP, No-Next-Header and
+/// unknown protocols fail closed: reverse-flow attribution must never guess.
+fn ipv6_transport_offset(packet: &[u8], packet_end: usize) -> Option<(u8, usize)> {
+    const MAX_EXT_HEADERS: usize = 8;
+
+    let mut next = *packet.get(6)?;
+    let mut offset = 40usize;
+    let mut walked = 0usize;
+
+    loop {
+        if matches!(next, 6 | 17 | 1 | 58) {
+            return Some((next, offset));
+        }
+
+        // Fragment (44), ESP (50), No Next Header (59), and unknown
+        // protocols are deliberately not inspected beyond this point.
+        if matches!(next, 44 | 50 | 59)
+            || !matches!(next, 0 | 43 | 51 | 60)
+            || walked >= MAX_EXT_HEADERS
+        {
+            return None;
+        }
+
+        let header_prefix_end = offset.checked_add(2)?;
+        if header_prefix_end > packet_end {
+            return None;
+        }
+
+        let header_next = packet[offset];
+        let header_len = packet[offset + 1] as usize;
+        // AH (51) uses 4-octet units and includes two fixed words;
+        // Hop-by-Hop, Routing and Destination Options use 8-octet units.
+        let advance = if next == 51 {
+            header_len.checked_add(2)?.checked_mul(4)?
+        } else {
+            header_len.checked_add(1)?.checked_mul(8)?
+        };
+
+        if advance > packet_end || offset > packet_end - advance {
+            return None;
+        }
+
+        offset = offset.checked_add(advance)?;
+        next = header_next;
+        walked += 1;
+    }
+}
+
+/// Extracts a TCP/UDP 5-tuple from a complete IP packet. IPv6 extension
+/// headers are walked with the same bounded rules as the native Direct path.
+/// Fragmented packets and unsupported/non-plaintext chains fail closed.
 pub fn flow_key_from_ip_packet(packet: &[u8]) -> Option<FlowKey> {
     let version = packet.first()? >> 4;
     let (family, protocol, source, destination, l4_offset, packet_end) = match version {
@@ -121,7 +169,8 @@ pub fn flow_key_from_ip_packet(packet: &[u8]) -> Option<FlowKey> {
             let mut destination = [0u8; 16];
             source.copy_from_slice(&packet[8..24]);
             destination.copy_from_slice(&packet[24..40]);
-            (6, packet[6], source, destination, 40, end)
+            let (protocol, offset) = ipv6_transport_offset(packet, end)?;
+            (6, protocol, source, destination, offset, end)
         }
         _ => return None,
     };
@@ -234,6 +283,38 @@ mod tests {
         packet
     }
 
+    fn ipv6_tcp_with_extensions(
+        src_last: u8,
+        dst_last: u8,
+        sport: u16,
+        dport: u16,
+        extensions: &[(u8, u8)],
+    ) -> Vec<u8> {
+        let extension_bytes: usize = extensions
+            .iter()
+            .map(|(kind, len)| if *kind == 51 { (*len as usize + 2) * 4 } else { (*len as usize + 1) * 8 })
+            .sum();
+        let mut packet = vec![0u8; 40 + extension_bytes + 20];
+        packet[0] = 0x60;
+        packet[4..6].copy_from_slice(&((extension_bytes + 20) as u16).to_be_bytes());
+        packet[6] = extensions.first().map(|(kind, _)| *kind).unwrap_or(6);
+        packet[7] = 64;
+        packet[23] = src_last;
+        packet[39] = dst_last;
+
+        let mut offset = 40;
+        for (index, (kind, len)) in extensions.iter().enumerate() {
+            let advance = if *kind == 51 { (*len as usize + 2) * 4 } else { (*len as usize + 1) * 8 };
+            packet[offset] = extensions.get(index + 1).map(|(next, _)| *next).unwrap_or(6);
+            packet[offset + 1] = *len;
+            offset += advance;
+        }
+        packet[offset..offset + 2].copy_from_slice(&sport.to_be_bytes());
+        packet[offset + 2..offset + 4].copy_from_slice(&dport.to_be_bytes());
+        packet[offset + 12] = 0x50;
+        packet
+    }
+
     #[test]
     fn envelope_round_trip_and_rejects_malformed_or_unknown_uid() {
         let packet = ipv4_udp([10, 0, 0, 2], [203, 0, 113, 9], 50000, 53);
@@ -276,14 +357,47 @@ mod tests {
     }
 
     #[test]
-    fn fragmented_and_ipv6_extension_packets_fail_closed() {
+    fn ipv6_walkable_extensions_preserve_reverse_flow_attribution() {
+        // Hop-by-Hop, Routing, Destination Options and AH each use their
+        // protocol-specific length encoding and lead to the same TCP tuple.
+        for extension in [(0, 0), (43, 0), (60, 0), (51, 1)] {
+            let outbound = ipv6_tcp_with_extensions(2, 9, 51000, 443, &[extension]);
+            let inbound = ipv6_tcp_with_extensions(9, 2, 443, 51000, &[extension]);
+            let outbound_key = flow_key_from_ip_packet(&outbound).unwrap();
+            let inbound_key = flow_key_from_ip_packet(&inbound).unwrap();
+            let mut owners = FlowOwnerMap::new(32, 30_000_000_000);
+            assert!(owners.remember_outbound(outbound_key, 23456, 10));
+            assert_eq!(owners.lookup_inbound(inbound_key, 20), Some(23456));
+        }
+
+        // A mixed chain is bounded and can walk more than one extension.
+        let chained = ipv6_tcp_with_extensions(2, 9, 51000, 443, &[(0, 0), (51, 1), (60, 0)]);
+        assert!(flow_key_from_ip_packet(&chained).is_some());
+    }
+
+    #[test]
+    fn ipv6_unsupported_or_malformed_extension_chains_fail_closed() {
         let mut fragmented = ipv4_udp([10, 0, 0, 2], [203, 0, 113, 9], 50000, 53);
         fragmented[6] = 0x20; // MF: fragmented datagram
         assert!(flow_key_from_ip_packet(&fragmented).is_none());
 
-        let mut extension = ipv6_tcp(2, 9, 51000, 443);
-        extension[6] = 0; // Hop-by-hop extension; not parsed by this prototype.
-        assert!(flow_key_from_ip_packet(&extension).is_none());
+        for unsupported in [44u8, 50, 59, 135] {
+            let mut packet = ipv6_tcp(2, 9, 51000, 443);
+            packet[6] = unsupported;
+            assert!(flow_key_from_ip_packet(&packet).is_none());
+        }
+
+        // A header whose encoded length runs beyond the IPv6 payload is rejected.
+        let mut truncated = ipv6_tcp_with_extensions(2, 9, 51000, 443, &[(0, 0)]);
+        truncated[41] = 10;
+        assert!(flow_key_from_ip_packet(&truncated).is_none());
+
+        // More than the native walker's eight-header safety cap is rejected.
+        let too_many = ipv6_tcp_with_extensions(
+            2, 9, 51000, 443,
+            &[(0, 0), (43, 0), (60, 0), (51, 0), (0, 0), (43, 0), (60, 0), (51, 0), (0, 0)],
+        );
+        assert!(flow_key_from_ip_packet(&too_many).is_none());
     }
 
     #[test]
