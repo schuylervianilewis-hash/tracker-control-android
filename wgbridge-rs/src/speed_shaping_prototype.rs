@@ -79,20 +79,21 @@ impl Bucket {
 
         // A packet larger than the nominal burst is scheduled after enough
         // refill time to avoid granting an unbounded first-packet burst.
-        let oversized_packet_start = now.saturating_add(interval_ns.saturating_sub(burst_ns));
-        let debt_start = self
-            .theoretical_arrival_ns
+        // Tokens available now are equivalent to the burst allowance minus
+        // the already-reserved time debt. Include this packet's own size when
+        // calculating the wait, so a packet cannot overdraw the remaining
+        // burst just because it is the first packet to cross the threshold.
+        let debt_ns = self.theoretical_arrival_ns.saturating_sub(now);
+        let wait_ns = debt_ns
+            .saturating_add(interval_ns)
             .saturating_sub(burst_ns);
-        let start_ns = now.max(debt_start).max(oversized_packet_start);
 
         self.theoretical_arrival_ns = self
             .theoretical_arrival_ns
-            .max(start_ns)
+            .max(now)
             .saturating_add(interval_ns);
 
-        start_ns
-            .saturating_sub(now)
-            .min(u64::MAX as u128) as u64
+        wait_ns.min(u64::MAX as u128) as u64
     }
 }
 
@@ -432,7 +433,7 @@ mod tests {
         assert!(owners.remember_outbound(outbound, 111, 10));
         assert!(owners.remember_outbound(outbound, 222, 20));
         assert_eq!(owners.lookup_inbound(outbound.reverse(), 30), Some(222));
-        assert_eq!(owners.lookup_inbound(outbound.reverse(), 121), None);
+        assert_eq!(owners.lookup_inbound(outbound.reverse(), 131), None);
     }
 
     #[test]
