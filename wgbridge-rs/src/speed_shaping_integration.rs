@@ -299,4 +299,107 @@ mod tests {
         assert_eq!(queue.len(), 0);
         assert_eq!(queue.queued_bytes(), 0);
     }
+
+    #[test]
+    fn pending_queue_orders_deadlines_without_releasing_early() {
+        let mut queue = BoundedPendingQueue::new(4, 16);
+        assert!(queue.try_push(300, vec![3]).is_ok());
+        assert!(queue.try_push(100, vec![1]).is_ok());
+        assert!(queue.try_push(200, vec![2]).is_ok());
+        assert_eq!(queue.pop_ready(199), Some(vec![1]));
+        assert_eq!(queue.pop_ready(199), None);
+        assert_eq!(queue.pop_ready(200), Some(vec![2]));
+        assert_eq!(queue.pop_ready(299), None);
+        assert_eq!(queue.pop_ready(300), Some(vec![3]));
+    }
+
+    #[test]
+    fn concurrent_direct_and_wireguard_reservations_share_one_bucket() {
+        use crate::speed_shaping_prototype::{AggregateLimiter, Direction};
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+
+        let limiter = Arc::new(Mutex::new(AggregateLimiter::new(1_000, 1_000)));
+        let workers: Vec<_> = (0..64)
+            .map(|index| {
+                let limiter = Arc::clone(&limiter);
+                thread::spawn(move || {
+                    let uid = if index % 2 == 0 { 10_001 } else { 10_002 };
+                    limiter
+                        .lock()
+                        .unwrap()
+                        .reserve(Direction::Upload, uid, 100, false, 0)
+                })
+            })
+            .collect();
+
+        let mut immediate = 0;
+        let mut paced = 0;
+        for worker in workers {
+            match worker.join().expect("reservation worker must complete") {
+                crate::speed_shaping_prototype::ReserveDecision::WaitNanos(0) => immediate += 1,
+                crate::speed_shaping_prototype::ReserveDecision::WaitNanos(wait) => {
+                    assert!(wait > 0);
+                    paced += 1;
+                }
+                other => panic!("known owner should be shaped, got {other:?}"),
+            }
+        }
+
+        // The shared 2,920-byte burst admits 29 x 100-byte reservations.
+        // Splitting callers across two simulated datapaths must not double it.
+        assert_eq!(immediate, 29);
+        assert_eq!(paced, 35);
+    }
+
+    #[test]
+    fn malformed_ip_lengths_and_fragment_headers_fail_closed() {
+        let mut bad_ihl = ipv4_udp([10, 0, 0, 2], [203, 0, 113, 9], 50000, 443);
+        bad_ihl[0] = 0x44;
+        assert!(flow_key_from_ip_packet(&bad_ihl).is_none());
+
+        let mut bad_total_len = ipv4_udp([10, 0, 0, 2], [203, 0, 113, 9], 50000, 443);
+        bad_total_len[2..4].copy_from_slice(&(19u16).to_be_bytes());
+        assert!(flow_key_from_ip_packet(&bad_total_len).is_none());
+
+        let mut non_initial_fragment =
+            ipv4_udp([10, 0, 0, 2], [203, 0, 113, 9], 50000, 443);
+        non_initial_fragment[7] = 1;
+        assert!(flow_key_from_ip_packet(&non_initial_fragment).is_none());
+
+        let mut ipv6_fragment = ipv6_tcp(2, 9, 51000, 443);
+        ipv6_fragment[6] = 44; // Fragment extension header.
+        assert!(flow_key_from_ip_packet(&ipv6_fragment).is_none());
+
+        let mut truncated_transport = ipv6_tcp(2, 9, 51000, 443);
+        truncated_transport[4..6].copy_from_slice(&(2u16).to_be_bytes());
+        assert!(flow_key_from_ip_packet(&truncated_transport).is_none());
+    }
+
+    #[test]
+    fn envelope_rejects_unknown_flags_reserved_bytes_and_trailing_data() {
+        let packet = ipv4_udp([10, 0, 0, 2], [203, 0, 113, 9], 50000, 443);
+        let mut envelope = Vec::new();
+        envelope.extend_from_slice(&ENVELOPE_MAGIC);
+        envelope.extend_from_slice(&[ENVELOPE_VERSION, 0, 0, 0]);
+        envelope.extend_from_slice(&12345i32.to_le_bytes());
+        envelope.extend_from_slice(&(packet.len() as u32).to_le_bytes());
+        envelope.extend_from_slice(&packet);
+
+        let mut bad_flags = envelope.clone();
+        bad_flags[5] = 1;
+        assert!(decode_envelope(&bad_flags).is_none());
+
+        let mut bad_reserved = envelope.clone();
+        bad_reserved[7] = 1;
+        assert!(decode_envelope(&bad_reserved).is_none());
+
+        let mut trailing = envelope.clone();
+        trailing.push(0);
+        assert!(decode_envelope(&trailing).is_none());
+
+        let mut zero_length = envelope;
+        zero_length[12..16].copy_from_slice(&0u32.to_le_bytes());
+        assert!(decode_envelope(&zero_length).is_none());
+    }
 }
