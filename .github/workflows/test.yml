@@ -87,9 +87,7 @@ jobs:
           # through dlopen/dlsym and a SOCK_DGRAM socketpair. No live packet
           # forwarding code is linked or modified by this test.
           cargo build --manifest-path wgbridge-rs/Cargo.toml --lib --locked --offline
-          cc -std=c11 -Wall -Wextra -Werror \\
-            -o /tmp/speed_shaping_ffi_test \\
-            app/src/test/native/speed_shaping_ffi_test.c -ldl
+          cc -std=c11 -Wall -Wextra -Werror -o /tmp/speed_shaping_ffi_test app/src/test/native/speed_shaping_ffi_test.c -ldl
           /tmp/speed_shaping_ffi_test wgbridge-rs/target/debug/libwgbridge.so
 
       - name: Run DNS-over-TCP framing and detection regression tests
