@@ -151,6 +151,18 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1init(
     // Resolve the routing policy now: the packet path must never pay a dlopen,
     // and a failure should be logged while there is still something to read it.
     policy_ensure();
+    // Debug builds use a deliberately low temporary QA cap so the real
+    // Direct and WireGuard paths can be exercised without adding settings UI.
+    // Release builds remain unlimited until user-facing configuration lands.
+#ifndef NDEBUG
+    if (speed_limit_configure(256 * 1024, 256 * 1024, NULL, 0) == 0)
+        log_android(ANDROID_LOG_WARN,
+                    "speed shaping QA cap enabled: upload/download 256 KiB/s");
+    else
+        log_android(ANDROID_LOG_WARN, "speed shaping QA cap unavailable");
+#else
+    speed_limit_configure(0, 0, NULL, 0);
+#endif
     // Owner state belongs to this process-wide packet-path lifecycle. Keep it
     // across ordinary WireGuard stop/start and route reloads, but do not carry
     // it into a newly initialised native context.
@@ -158,6 +170,9 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1init(
 
     struct context *ctx = ng_calloc(1, sizeof(struct context), "init");
     ctx->sdk = sdk;
+    ctx->speed_timer_fd = -1;
+    if (speed_pending_queue_init(&ctx->speed_queue, 512, 2 * 1024 * 1024) != 0)
+        log_android(ANDROID_LOG_ERROR, "speed shaping: queue initialization failed");
 
     loglevel = ANDROID_LOG_WARN;
 
