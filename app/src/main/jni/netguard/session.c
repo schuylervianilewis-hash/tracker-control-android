@@ -34,6 +34,44 @@ void clear(struct context *ctx) {
     }
     ctx->ng_session = NULL;
     speed_pending_queue_clear(&ctx->speed_queue);
+    ctx->speed_backpressure = 0;
+}
+
+static void update_speed_backpressure(const struct arguments *args,
+                                       int epoll_fd,
+                                       struct epoll_event *ev_tun,
+                                       int *tun_paused) {
+    struct context *ctx = args->ctx;
+    if (!ctx->speed_backpressure &&
+        speed_pending_queue_should_pause(&ctx->speed_queue))
+        ctx->speed_backpressure = 1;
+    else if (ctx->speed_backpressure &&
+             speed_pending_queue_should_resume(&ctx->speed_queue))
+        ctx->speed_backpressure = 0;
+
+    if (ctx->speed_backpressure && !*tun_paused) {
+        ev_tun->events = EPOLLERR;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, args->tun, ev_tun)) {
+            int error = errno;
+            log_android(ANDROID_LOG_ERROR,
+                        "speed shaping: failed to pause TUN reads errno %d: %s",
+                        error, strerror(error));
+            report_exit(args, error, "speed shaping: failed to pause TUN reads");
+            ctx->stopping = 1;
+        } else
+            *tun_paused = 1;
+    } else if (!ctx->speed_backpressure && *tun_paused) {
+        ev_tun->events = EPOLLIN | EPOLLERR;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, args->tun, ev_tun)) {
+            int error = errno;
+            log_android(ANDROID_LOG_ERROR,
+                        "speed shaping: failed to resume TUN reads errno %d: %s",
+                        error, strerror(error));
+            report_exit(args, error, "speed shaping: failed to resume TUN reads");
+            ctx->stopping = 1;
+        } else
+            *tun_paused = 0;
+    }
 }
 
 void *handle_events(void *a) {
@@ -109,6 +147,7 @@ void *handle_events(void *a) {
     memset(&ev_tun, 0, sizeof(struct epoll_event));
     ev_tun.events = EPOLLIN | EPOLLERR;
     ev_tun.data.ptr = NULL;
+    int tun_paused = 0;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, args->tun, &ev_tun)) {
         int error = errno;
         log_android(ANDROID_LOG_ERROR, "epoll add tun error %d: %s", error, strerror(error));
@@ -267,6 +306,7 @@ void *handle_events(void *a) {
             for (int i = 0; i < ready; i++) {
                 if (ev[i].data.ptr == &ev_speed) {
                     speed_pending_drain(args, epoll_fd);
+                    update_speed_backpressure(args, epoll_fd, &ev_tun, &tun_paused);
 
                 } else if (ev[i].data.ptr == &ev_pipe) {
                     // Check pipe
@@ -288,10 +328,11 @@ void *handle_events(void *a) {
 
                     int count = 0;
                     while (count < TUN_YIELD && !error && !args->ctx->stopping &&
-                           is_readable(args->tun)) {
+                           !args->ctx->speed_backpressure && is_readable(args->tun)) {
                         count++;
                         if (check_tun(args, &ev[i], epoll_fd, sessions, maxsessions) < 0)
                             error = 1;
+                        update_speed_backpressure(args, epoll_fd, &ev_tun, &tun_paused);
                     }
 
                 } else {
@@ -327,6 +368,7 @@ void *handle_events(void *a) {
                         check_tcp_socket(args, &ev[i], epoll_fd);
                 }
 
+                update_speed_backpressure(args, epoll_fd, &ev_tun, &tun_paused);
                 if (error)
                     break;
             }
@@ -341,6 +383,7 @@ void *handle_events(void *a) {
 
 cleanup:
     speed_pending_queue_clear(&args->ctx->speed_queue);
+    args->ctx->speed_backpressure = 0;
     if (args->ctx->speed_timer_fd >= 0) {
         if (close(args->ctx->speed_timer_fd))
             log_android(ANDROID_LOG_WARN, "speed shaping: timerfd close failed: %s",
