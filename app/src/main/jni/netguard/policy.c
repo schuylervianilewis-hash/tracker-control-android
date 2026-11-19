@@ -149,6 +149,15 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
     if (wait_ns <= 0)
         return 0;
 
+    static _Atomic int upload_pacing_logged = 0;
+    static _Atomic int download_pacing_logged = 0;
+    _Atomic int *logged = (kind == SPEED_PENDING_DIRECT_UPLOAD
+                           ? &upload_pacing_logged : &download_pacing_logged);
+    if (atomic_exchange_explicit(logged, 1, memory_order_relaxed) == 0)
+        log_android(ANDROID_LOG_WARN,
+                    "speed shaping: Direct %s pacing active",
+                    kind == SPEED_PENDING_DIRECT_UPLOAD ? "upload" : "download");
+
     if (args->ctx->speed_timer_fd < 0)
         return 0;
 
