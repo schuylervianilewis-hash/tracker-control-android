@@ -143,13 +143,14 @@ impl IpSend for TunFdSend {
 #[cfg(test)]
 mod tests {
     use super::{record_tun_write, TunFdSend};
+    use crate::speed_shaping_prototype::FlowOwnerMap;
     use gotatun::packet::{Ip, Packet};
     use gotatun::tun::IpSend;
     use std::fs::OpenOptions;
     use std::os::fd::{FromRawFd, OwnedFd};
     use std::sync::atomic::AtomicU64;
     use std::sync::atomic::Ordering;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     fn minimal_ipv4_packet() -> (Packet<Ip>, [u8; 20]) {
         let bytes = [
@@ -222,6 +223,7 @@ mod tests {
             None,
             Arc::clone(&total),
             Arc::clone(&streak),
+            Arc::new(Mutex::new(FlowOwnerMap::new(16, 30_000_000_000))),
         );
 
         for _ in 0..3 {
