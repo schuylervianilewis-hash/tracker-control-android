@@ -114,7 +114,12 @@ static void test_backpressure_watermarks(void) {
           "enqueue watermark packet three");
     CHECK(speed_pending_queue_should_pause(&queue), "high watermark pauses readers");
     CHECK(speed_pending_queue_pop_ready(&queue, 10, &out, &length) == 1,
-          "pop packet to cross low watermark");
+          "pop first packet toward low watermark");
+    free(out);
+    CHECK(!speed_pending_queue_should_resume(&queue),
+          "hysteresis keeps readers paused above low watermark");
+    CHECK(speed_pending_queue_pop_ready(&queue, 20, &out, &length) == 1,
+          "pop second packet below low watermark");
     free(out);
     CHECK(speed_pending_queue_should_resume(&queue),
           "queue below low watermark resumes readers");
