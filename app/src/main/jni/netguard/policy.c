@@ -187,6 +187,16 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
     int rc = speed_pending_queue_push_ex(&args->ctx->speed_queue,
                                          now_ns + (uint64_t) wait_ns,
                                          packet, length, &metadata);
+    if (rc == -3) {
+        // Allocation pressure must not turn a TCP pacing decision into a
+        // payload drop. Fail open for this packet and keep firewall policy.
+        static _Atomic int allocation_warning_logged = 0;
+        if (atomic_exchange_explicit(&allocation_warning_logged, 1,
+                                     memory_order_relaxed) == 0)
+            log_android(ANDROID_LOG_WARN,
+                        "speed shaping: queue allocation failed; bypassing pacing for affected packets");
+        return 0;
+    }
     if (rc != 0) {
         static _Atomic unsigned long queue_drops = 0;
         unsigned long count = atomic_fetch_add_explicit(&queue_drops, 1,
