@@ -1829,20 +1829,8 @@ ssize_t write_tcp(const struct arguments *args, const struct tcp_session *cur,
                 ntohl(tcp->ack_seq) - cur->remote_start,
                 datalen);
 
-    ssize_t res = write(args->tun, buffer, len);
-
-    // Write pcap record
-    if (res >= 0) {
-        if (pcap_file != NULL)
-            write_pcap_rec(buffer, (size_t) res);
-    } else
-        log_android(ANDROID_LOG_ERROR, "TCP write%s%s%s%s data %d error %d: %s",
-                    (tcp->syn ? " SYN" : ""),
-                    (tcp->ack ? " ACK" : ""),
-                    (tcp->fin ? " FIN" : ""),
-                    (tcp->rst ? " RST" : ""),
-                    datalen,
-                    errno, strerror((errno)));
+    ssize_t res = speed_write_tun_packet(args, buffer, len, cur->uid,
+                                         ntohs(cur->dest) == 53);
 
     ng_free(buffer, __FILE__, __LINE__);
 
