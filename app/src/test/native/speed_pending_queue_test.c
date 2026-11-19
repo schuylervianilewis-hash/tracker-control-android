@@ -98,10 +98,44 @@ static void test_input_validation(void) {
     speed_pending_queue_clear(&queue);
 }
 
+static void test_dispatch_metadata_round_trip(void) {
+    struct speed_pending_queue queue;
+    const uint8_t packet[] = {9, 8, 7};
+    uint8_t *out = NULL;
+    size_t length = 0;
+    struct speed_pending_metadata input;
+    struct speed_pending_metadata output;
+    memset(&input, 0, sizeof(input));
+    input.kind = SPEED_PENDING_DIRECT_UPLOAD;
+    input.protocol = 17;
+    input.uid = -1;
+    input.payload_offset = 20;
+    input.has_redirect = 1;
+    input.redirect_port = 8443;
+    snprintf(input.redirect_addr, sizeof(input.redirect_addr), "%s", "192.0.2.1");
+
+    CHECK(speed_pending_queue_init(&queue, 4, 32) == 0, "initialize metadata queue");
+    CHECK(speed_pending_queue_push_ex(&queue, 10, packet, sizeof(packet), &input) == 0,
+          "queue packet with dispatch metadata");
+    CHECK(speed_pending_queue_pop_ready_ex(&queue, 10, &out, &length, &output) == 1,
+          "pop packet with dispatch metadata");
+    CHECK(length == sizeof(packet) && memcmp(out, packet, length) == 0,
+          "metadata queue preserves packet bytes");
+    CHECK(output.kind == input.kind && output.protocol == input.protocol &&
+          output.uid == input.uid && output.payload_offset == input.payload_offset,
+          "metadata queue preserves dispatch identity");
+    CHECK(output.has_redirect == 1 && output.redirect_port == 8443 &&
+          strcmp(output.redirect_addr, "192.0.2.1") == 0,
+          "metadata queue preserves redirect destination");
+    free(out);
+    speed_pending_queue_clear(&queue);
+}
+
 int main(void) {
     test_deadline_order_and_no_early_release();
     test_packet_and_byte_bounds();
     test_input_validation();
+    test_dispatch_metadata_round_trip();
     if (failures != 0) {
         fprintf(stderr, "speed_pending_queue_test: %d failure(s)\n", failures);
         return EXIT_FAILURE;
