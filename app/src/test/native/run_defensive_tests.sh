@@ -20,7 +20,7 @@ compile() {
 }
 compile tcp_defensive_test app/src/test/native/tcp_defensive_test.c \
     app/src/main/jni/netguard/tcp.c app/src/main/jni/netguard/dns_frame.c \
-    app/src/test/native/speed_shaping_test_stub.c \\
+    app/src/test/native/speed_shaping_test_stub.c \
     -Wl,--wrap=close -Wl,--wrap=connect -Wl,--wrap=send
 compile udp_defensive_test app/src/test/native/udp_defensive_test.c \
     app/src/main/jni/netguard/udp.c app/src/test/native/speed_shaping_test_stub.c \
