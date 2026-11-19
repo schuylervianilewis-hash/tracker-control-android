@@ -34,7 +34,7 @@ pub fn decode_envelope(data: &[u8]) -> Option<DecodedEnvelope<'_>> {
 
     let uid = i32::from_le_bytes(data[8..12].try_into().ok()?);
     let packet_len = u32::from_le_bytes(data[12..16].try_into().ok()?) as usize;
-    if uid < 0 || packet_len == 0 || packet_len > MAX_PACKET_LEN {
+    if uid < -1 || packet_len == 0 || packet_len > MAX_PACKET_LEN {
         return None;
     }
     let end = ENVELOPE_HEADER_LEN.checked_add(packet_len)?;
@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn envelope_round_trip_and_rejects_malformed_or_unknown_uid() {
+    fn envelope_round_trip_allows_unknown_uid_but_rejects_invalid_values() {
         let packet = ipv4_udp([10, 0, 0, 2], [203, 0, 113, 9], 50000, 53);
         let mut envelope = Vec::new();
         envelope.extend_from_slice(&ENVELOPE_MAGIC);
@@ -330,7 +330,13 @@ mod tests {
 
         let mut unknown = envelope.clone();
         unknown[8..12].copy_from_slice(&(-1i32).to_le_bytes());
-        assert!(decode_envelope(&unknown).is_none());
+        let decoded_unknown = decode_envelope(&unknown).unwrap();
+        assert_eq!(decoded_unknown.uid, -1);
+        assert_eq!(decoded_unknown.packet, packet);
+
+        let mut invalid_uid = envelope.clone();
+        invalid_uid[8..12].copy_from_slice(&(-2i32).to_le_bytes());
+        assert!(decode_envelope(&invalid_uid).is_none());
         assert!(decode_envelope(&envelope[..envelope.len() - 1]).is_none());
     }
 
