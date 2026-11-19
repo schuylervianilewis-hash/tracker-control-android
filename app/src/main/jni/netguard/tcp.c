@@ -274,7 +274,7 @@ int monitor_tcp_session(const struct arguments *args, struct ng_session *s, int 
         else if (s->tcp.socks5_tx_len == 0 ||
                  s->tcp.socks5_tx_sent < s->tcp.socks5_tx_len)
             events = events | EPOLLOUT;
-        else
+        else if (!args->ctx->speed_backpressure)
             events = events | EPOLLIN;
     } else if (tcp_state_can_forward(&s->tcp)) {
 
@@ -636,7 +636,7 @@ void check_tcp_socket(const struct arguments *args,
                         s->tcp.socks5 = SOCKS5_CONNECTED;
                 }
             } else {
-                if ((ev->events & EPOLLIN) &&
+                if ((ev->events & EPOLLIN) && !args->ctx->speed_backpressure &&
                     s->tcp.socks5_tx_len > 0 &&
                     s->tcp.socks5_tx_sent == s->tcp.socks5_tx_len) {
                     ssize_t expected = get_socks5_response_length(&s->tcp);
