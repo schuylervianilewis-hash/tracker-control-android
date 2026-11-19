@@ -1,8 +1,8 @@
-//! Isolated cross-language integration harness for speed shaping.
+//! Cross-language envelope and flow-attribution helpers for speed shaping.
 //!
-//! This module deliberately does not alter the live C packet path or the
-//! gotatun transports. It specifies and tests the proposed C -> Rust datagram
-//! envelope, reverse-flow UID lookup, and a bounded non-blocking pacing queue.
+//! The production WireGuard socketpair uses the TCS1 UID+IP envelope decoded
+//! here. The bounded pending-queue primitive and host FFI entrypoint also
+//! support isolated integration tests before the native Direct path is wired.
 
 use std::collections::VecDeque;
 
