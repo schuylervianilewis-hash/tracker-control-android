@@ -112,6 +112,7 @@ struct context {
     struct ng_session *ng_session;
     struct speed_pending_queue speed_queue;
     int speed_timer_fd;
+    int speed_backpressure;
 };
 
 struct arguments {
