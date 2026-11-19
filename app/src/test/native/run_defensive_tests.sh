@@ -46,4 +46,5 @@ compile speed_pending_queue_test app/src/test/native/speed_pending_queue_test.c 
 compile ip_flow_policy_test app/src/test/native/ip_flow_policy_test.c \
     app/src/main/jni/netguard/ip.c app/src/main/jni/netguard/policy.c \
     app/src/main/jni/netguard/ip6_ext.c app/src/main/jni/netguard/tls.c \
+    app/src/main/jni/netguard/speed_pending_queue.c \
     -Wl,--wrap=dlopen -Wl,--wrap=dlsym -ldl -pthread
