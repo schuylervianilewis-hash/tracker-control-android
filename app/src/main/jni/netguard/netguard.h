@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/uio.h>
 #include <sys/epoll.h>
 #include <dlfcn.h>
 #include <sys/stat.h>
@@ -126,7 +127,7 @@ struct allowed {
 // Writes one TCS1 UID+IP envelope to the active WireGuard socketpair while
 // protecting the descriptor from concurrent stop/close. Returns 1 when
 // WireGuard claimed the packet (including a failed write, which must be dropped)
- // and 0 when inactive.
+// and 0 when inactive.
 int write_wireguard_packet(const void *packet, size_t length, jint uid,
                            ssize_t *written, int *write_errno);
 
