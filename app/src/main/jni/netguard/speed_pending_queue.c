@@ -7,6 +7,7 @@
 struct speed_pending_entry {
     uint64_t deadline_ns;
     size_t packet_len;
+    struct speed_pending_metadata metadata;
     uint8_t *packet;
     struct speed_pending_entry *next;
 };
@@ -22,9 +23,10 @@ int speed_pending_queue_init(struct speed_pending_queue *queue,
     return 0;
 }
 
-int speed_pending_queue_push(struct speed_pending_queue *queue,
-                             uint64_t deadline_ns,
-                             const uint8_t *packet, size_t packet_len) {
+int speed_pending_queue_push_ex(struct speed_pending_queue *queue,
+                                uint64_t deadline_ns,
+                                const uint8_t *packet, size_t packet_len,
+                                const struct speed_pending_metadata *metadata) {
     if (queue == NULL || packet == NULL || packet_len == 0 ||
         queue->max_packets == 0 || queue->max_bytes == 0)
         return -1;
@@ -45,6 +47,10 @@ int speed_pending_queue_push(struct speed_pending_queue *queue,
     memcpy(entry->packet, packet, packet_len);
     entry->deadline_ns = deadline_ns;
     entry->packet_len = packet_len;
+    if (metadata != NULL)
+        entry->metadata = *metadata;
+    else
+        memset(&entry->metadata, 0, sizeof(entry->metadata));
     entry->next = NULL;
 
     /* Stable insertion: packets with equal deadlines retain arrival order. */
@@ -59,15 +65,18 @@ int speed_pending_queue_push(struct speed_pending_queue *queue,
     return 0;
 }
 
-int speed_pending_queue_pop_ready(struct speed_pending_queue *queue,
-                                  uint64_t now_ns,
-                                  uint8_t **packet_out,
-                                  size_t *packet_len_out) {
+int speed_pending_queue_pop_ready_ex(struct speed_pending_queue *queue,
+                                     uint64_t now_ns,
+                                     uint8_t **packet_out,
+                                     size_t *packet_len_out,
+                                     struct speed_pending_metadata *metadata_out) {
     if (queue == NULL || packet_out == NULL || packet_len_out == NULL)
         return -1;
 
     *packet_out = NULL;
     *packet_len_out = 0;
+    if (metadata_out != NULL)
+        memset(metadata_out, 0, sizeof(*metadata_out));
     struct speed_pending_entry *entry = queue->head;
     if (entry == NULL || entry->deadline_ns > now_ns)
         return 0;
@@ -77,8 +86,24 @@ int speed_pending_queue_pop_ready(struct speed_pending_queue *queue,
     queue->queued_bytes -= entry->packet_len;
     *packet_out = entry->packet;
     *packet_len_out = entry->packet_len;
+    if (metadata_out != NULL)
+        *metadata_out = entry->metadata;
     free(entry);
     return 1;
+}
+
+int speed_pending_queue_push(struct speed_pending_queue *queue,
+                             uint64_t deadline_ns,
+                             const uint8_t *packet, size_t packet_len) {
+    return speed_pending_queue_push_ex(queue, deadline_ns, packet, packet_len, NULL);
+}
+
+int speed_pending_queue_pop_ready(struct speed_pending_queue *queue,
+                                  uint64_t now_ns,
+                                  uint8_t **packet_out,
+                                  size_t *packet_len_out) {
+    return speed_pending_queue_pop_ready_ex(queue, now_ns, packet_out,
+                                            packet_len_out, NULL);
 }
 
 int speed_pending_queue_next_deadline(const struct speed_pending_queue *queue,
