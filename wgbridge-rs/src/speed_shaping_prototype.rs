@@ -187,6 +187,11 @@ impl FlowKey {
             destination_port: self.source_port,
         }
     }
+
+    /// True when either endpoint is the conventional DNS port.
+    pub fn is_dns_port_53(self) -> bool {
+        self.source_port == 53 || self.destination_port == 53
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
