@@ -372,14 +372,7 @@ ssize_t write_icmp(const struct arguments *args, const struct icmp_session *cur,
                 args->tun, dest, source, datalen,
                 icmp->icmp_type, icmp->icmp_code, icmp->icmp_id, icmp->icmp_seq);
 
-    ssize_t res = write(args->tun, buffer, len);
-
-    // Write PCAP record
-    if (res >= 0) {
-        if (pcap_file != NULL)
-            write_pcap_rec(buffer, (size_t) res);
-    } else
-        log_android(ANDROID_LOG_WARN, "ICMP write error %d: %s", errno, strerror(errno));
+    ssize_t res = speed_write_tun_packet(args, buffer, len, cur->uid, 0);
 
     ng_free(buffer, __FILE__, __LINE__);
 
