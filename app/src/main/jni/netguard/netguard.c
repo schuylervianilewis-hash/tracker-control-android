@@ -447,62 +447,59 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1wireguard_1start(JNIEnv *env, job
 int write_wireguard_packet(const void *packet, size_t length, jint uid,
                            ssize_t *written, int *write_errno) {
     enum { WG_ENVELOPE_HEADER_LEN = 16 };
+    uint8_t header[WG_ENVELOPE_HEADER_LEN];
     *written = -1;
     *write_errno = 0;
 
-    if (packet == NULL || length == 0 || length > UINT32_MAX) {
+    if (packet == NULL || length == 0 || length > UINT32_MAX ||
+        length > SIZE_MAX - WG_ENVELOPE_HEADER_LEN) {
         *write_errno = EINVAL;
         return 1;
     }
 
     // TCS1 envelope: magic, version/flags/reserved, UID, IP packet length,
     // followed by the original IP packet. Explicit byte order keeps the
-    // C/Rust contract independent of host endianness.
-    size_t envelope_len = WG_ENVELOPE_HEADER_LEN + length;
-    uint8_t *envelope = malloc(envelope_len);
-    if (envelope == NULL) {
-        *write_errno = ENOMEM;
-        return 1;
-    }
-    memcpy(envelope, "TCS1", 4);
-    envelope[4] = 1;
-    envelope[5] = 0;
-    envelope[6] = 0;
-    envelope[7] = 0;
+    // C/Rust contract independent of host endianness. writev keeps this a
+    // single SOCK_DGRAM message without allocating/copying every packet.
+    memcpy(header, "TCS1", 4);
+    header[4] = 1;
+    header[5] = 0;
+    header[6] = 0;
+    header[7] = 0;
     uint32_t uid_bits = (uint32_t) uid;
     uint32_t packet_len = (uint32_t) length;
     for (int i = 0; i < 4; i++) {
-        envelope[8 + i] = (uint8_t) (uid_bits >> (i * 8));
-        envelope[12 + i] = (uint8_t) (packet_len >> (i * 8));
+        header[8 + i] = (uint8_t) (uid_bits >> (i * 8));
+        header[12 + i] = (uint8_t) (packet_len >> (i * 8));
     }
-    memcpy(envelope + WG_ENVELOPE_HEADER_LEN, packet, length);
 
     if (pthread_mutex_lock(&wg_outbound_lock)) {
         // Claim and drop the packet: falling through could leak it directly.
         *write_errno = EIO;
-        free(envelope);
         return 1;
     }
 
     if (wg_outbound_fd < 0) {
         pthread_mutex_unlock(&wg_outbound_lock);
-        free(envelope);
         return 0;
     }
 
-    ssize_t sent = write(wg_outbound_fd, envelope, envelope_len);
+    struct iovec iov[2] = {
+        {.iov_base = header, .iov_len = sizeof(header)},
+        {.iov_base = (void *) packet, .iov_len = length},
+    };
+    size_t envelope_len = sizeof(header) + length;
+    ssize_t sent = writev(wg_outbound_fd, iov, 2);
     if (sent == (ssize_t) envelope_len)
         *written = (ssize_t) length;
     else {
         *written = -1; // Datagram writes are atomic; never accept a partial envelope.
         *write_errno = (sent < 0 ? errno : EIO);
     }
-    free(envelope);
     if (pthread_mutex_unlock(&wg_outbound_lock))
         log_android(ANDROID_LOG_ERROR, "wg outbound unlock failed after write");
     return 1;
 }
-
 JNIEXPORT void JNICALL
 Java_eu_faircode_netguard_ServiceSinkhole_jni_1wireguard_1required(JNIEnv *env, jobject instance,
                                                                    jboolean required) {
