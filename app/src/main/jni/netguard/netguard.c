@@ -494,9 +494,8 @@ int write_wireguard_packet(const void *packet, size_t length, jint uid,
     if (sent == (ssize_t) envelope_len)
         *written = (ssize_t) length;
     else {
-        *written = sent;
-        if (sent < 0)
-            *write_errno = errno;
+        *written = -1; // Datagram writes are atomic; never accept a partial envelope.
+        *write_errno = (sent < 0 ? errno : EIO);
     }
     free(envelope);
     if (pthread_mutex_unlock(&wg_outbound_lock))
