@@ -1002,7 +1002,7 @@ void handle_ip(const struct arguments *args,
         if (wg_dest) {
             ssize_t w;
             int write_errno;
-            if (write_wireguard_packet(pkt, length, &w, &write_errno)) {
+            if (write_wireguard_packet(pkt, length, uid, &w, &write_errno)) {
                 if (w != (ssize_t) length) {
                     if (w < 0 && (write_errno == EAGAIN || write_errno == EWOULDBLOCK)) {
                         long drops = atomic_fetch_add_explicit(
