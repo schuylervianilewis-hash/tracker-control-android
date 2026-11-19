@@ -280,7 +280,8 @@ int monitor_tcp_session(const struct arguments *args, struct ng_session *s, int 
 
         // Check for incoming data
         uint32_t send_window = get_send_window(&s->tcp);
-        if (!s->tcp.upstream_read_eof && send_window > 0)
+        if (!s->tcp.upstream_read_eof && send_window > 0 &&
+            !args->ctx->speed_backpressure)
             events = events | EPOLLIN;
         // HUP is level-triggered and is reported even when not requested. If
         // unread bytes remain behind a closed app window, arm the descriptor
@@ -809,7 +810,7 @@ void check_tcp_socket(const struct arguments *args,
 
                 uint32_t send_window = get_send_window(&s->tcp);
                 if ((ev->events & EPOLLIN) && send_window > 0 &&
-                    !s->tcp.upstream_read_eof) {
+                    !s->tcp.upstream_read_eof && !args->ctx->speed_backpressure) {
                     s->tcp.time = time(NULL);
 
                     uint32_t buffer_size = (send_window > s->tcp.mss
