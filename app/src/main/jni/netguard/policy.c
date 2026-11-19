@@ -180,8 +180,9 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
     if (redirect != NULL) {
         metadata.has_redirect = 1;
         metadata.redirect_port = redirect->rport;
-        snprintf(metadata.redirect_addr, sizeof(metadata.redirect_addr), "%s",
-                 redirect->raddr);
+        memcpy(metadata.redirect_addr, redirect->raddr,
+               sizeof(metadata.redirect_addr) - 1);
+        metadata.redirect_addr[sizeof(metadata.redirect_addr) - 1] = '\0';
     }
 
     int rc = speed_pending_queue_push_ex(&args->ctx->speed_queue,
