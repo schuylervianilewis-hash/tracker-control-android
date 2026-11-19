@@ -471,7 +471,10 @@ mod tests {
             shared_wait > 0 && shared_wait <= 80_000_000,
             "expected a positive shared-bucket wait no greater than 80 ms, got {shared_wait}"
         );
-        assert_eq!(tc_speed_prototype_reserve(0, -1, 1_000, 0), -1);
+        // Unknown owners are charged to the global bucket; only the
+        // explicit DNS exception bypasses shaping.
+        let unknown_wait = tc_speed_prototype_reserve(0, -1, 1_000, 0);
+        assert!(unknown_wait > 0, "unknown UID must remain globally shaped");
         assert_eq!(tc_speed_prototype_reserve(0, -1, 1_000, 1), 0);
     }
 }
