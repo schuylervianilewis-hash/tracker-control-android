@@ -63,8 +63,8 @@ fn dup_fd(fd: i32) -> io::Result<OwnedFd> {
 /// Boots gotatun.
 ///
 /// * `uapi_config`   – UAPI text produced by WgConfig.toUapi() on the Java side.
-/// * `outbound_rx_fd`– read end of a socketpair held by C; C writes raw IP
-///   packets, gotatun reads them as its "TUN".
+/// * `outbound_rx_fd`– read end of a socketpair held by C; C writes TCS1
+///   UID+IP datagrams, which the custom IpRecv decodes before gotatun sees them.
 /// * `tun_write_fd`  – VpnService TUN fd; decrypted inbound IP packets are
 ///   written here.
 /// * `mtu`           – payload MTU (typically 1420).
