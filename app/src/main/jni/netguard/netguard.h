@@ -399,7 +399,7 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
 ssize_t speed_write_tun_packet(const struct arguments *args,
                                const uint8_t *packet, size_t length,
                                jint uid, int dns_port_53);
-void speed_pending_arm(struct context *ctx);
+int speed_pending_arm(struct context *ctx);
 void speed_pending_drain(const struct arguments *args, int epoll_fd);
 void speed_pending_dispatch_upload(const struct arguments *args,
                                    const uint8_t *packet, size_t length,
