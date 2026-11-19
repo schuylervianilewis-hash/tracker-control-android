@@ -155,9 +155,9 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1init(
     // Direct and WireGuard paths can be exercised without adding settings UI.
     // Release builds remain unlimited until user-facing configuration lands.
 #ifndef NDEBUG
-    if (speed_limit_configure(256 * 1024, 256 * 1024, NULL, 0) == 0)
+    if (speed_limit_configure(32000, 32000, NULL, 0) == 0)
         log_android(ANDROID_LOG_WARN,
-                    "speed shaping QA cap enabled: upload/download 256 KiB/s");
+                    "speed shaping QA cap enabled: upload/download 256 Kbps");
     else
         log_android(ANDROID_LOG_WARN, "speed shaping QA cap unavailable");
 #else
