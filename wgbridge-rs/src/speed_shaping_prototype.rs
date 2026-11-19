@@ -1,10 +1,8 @@
-//! Isolated feasibility prototype for a single aggregate limiter shared by
-//! NetGuard's C Direct path and the Rust WireGuard bridge.
+//! Shared aggregate limiter for NetGuard's Direct and WireGuard datapaths.
 //!
-//! This module is deliberately NOT wired into packet forwarding. It proves
-//! the shared-state and reverse-flow-attribution primitives before either
-//! datapath is changed. The exported C ABI can be resolved by the existing
-//! libwgbridge.so dlopen pattern in netguard/policy.c.
+//! The Rust WireGuard transport now uses the upload/download reservations and
+//! reverse-flow owner map. The native C Direct path is the remaining integration
+//! target and can resolve the exported ABI through the existing dlopen pattern.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock, PoisonError};
