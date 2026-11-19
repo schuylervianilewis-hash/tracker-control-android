@@ -8,7 +8,7 @@ static int failures;
 
 #define CHECK(condition, message) do { \
     if (!(condition)) { \
-        fprintf(stderr, "FAIL: %s\\n", message); \
+        fprintf(stderr, "FAIL: %s\n", message); \
         failures++; \
     } \
 } while (0)
@@ -103,7 +103,7 @@ int main(void) {
     test_packet_and_byte_bounds();
     test_input_validation();
     if (failures != 0) {
-        fprintf(stderr, "speed_pending_queue_test: %d failure(s)\\n", failures);
+        fprintf(stderr, "speed_pending_queue_test: %d failure(s)\n", failures);
         return EXIT_FAILURE;
     }
     puts("speed_pending_queue_test: all tests passed");
