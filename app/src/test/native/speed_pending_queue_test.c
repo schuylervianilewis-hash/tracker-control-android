@@ -61,14 +61,14 @@ static void test_deadline_order_and_no_early_release(void) {
 static void test_packet_and_byte_bounds(void) {
     struct speed_pending_queue queue;
     const uint8_t packet[] = {1, 2, 3, 4};
-    CHECK(speed_pending_queue_init(&queue, 2, 7) == 0, "initialize bounded queue");
+    CHECK(speed_pending_queue_init(&queue, 2, 8) == 0, "initialize bounded queue");
     CHECK(speed_pending_queue_push(&queue, 1, packet, sizeof(packet)) == 0,
           "first packet fits");
     CHECK(speed_pending_queue_push(&queue, 2, packet, sizeof(packet)) == 0,
           "second packet fits byte budget");
     CHECK(speed_pending_queue_push(&queue, 3, packet, 1) == -2,
           "packet-count limit rejects overflow");
-    CHECK(queue.packet_count == 2 && queue.queued_bytes == 8 - 0,
+    CHECK(queue.packet_count == 2 && queue.queued_bytes == 8,
           "queue counters remain unchanged after packet-count rejection");
     speed_pending_queue_clear(&queue);
 
