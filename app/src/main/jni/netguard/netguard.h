@@ -39,6 +39,7 @@
 #include "tcdns.h"
 #include "dns_frame.h" // libc-only: no JNI/session dependencies
 #include "udp_state.h"
+#include "speed_pending_queue.h"
 
 #define TAG "TrackerControl.JNI"
 
@@ -109,6 +110,8 @@ struct context {
     int sdk;
     jboolean tcp_mss_clamp;
     struct ng_session *ng_session;
+    struct speed_pending_queue speed_queue;
+    int speed_timer_fd;
 };
 
 struct arguments {
@@ -384,6 +387,28 @@ void report_error(const struct arguments *args, jint error, const char *fmt, ...
 void check_allowed(const struct arguments *args);
 
 void clear(struct context *ctx);
+
+int speed_limit_configure(uint64_t upload_bytes_per_second,
+                          uint64_t download_bytes_per_second,
+                          const jint *exempt_uids, size_t exempt_count);
+int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_53);
+int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
+                         const uint8_t *packet, size_t length, jint uid,
+                         int dns_port_53, int protocol, size_t payload_offset,
+                         const struct allowed *redirect);
+ssize_t speed_write_tun_packet(const struct arguments *args,
+                               const uint8_t *packet, size_t length,
+                               jint uid, int dns_port_53);
+void speed_pending_arm(struct context *ctx);
+void speed_pending_drain(const struct arguments *args, int epoll_fd);
+void speed_pending_dispatch_upload(const struct arguments *args,
+                                   const uint8_t *packet, size_t length,
+                                   const struct speed_pending_metadata *metadata,
+                                   int epoll_fd);
+void dispatch_direct_packet(const struct arguments *args,
+                            const uint8_t *packet, size_t length,
+                            uint8_t protocol, size_t payload_offset,
+                            jint uid, struct allowed *redirect, int epoll_fd);
 
 int check_icmp_session(const struct arguments *args,
                        struct ng_session *s,
