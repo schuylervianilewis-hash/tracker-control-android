@@ -158,9 +158,10 @@ struct allowed *is_address_allowed(const struct arguments *unused,
     return policy_allowed ? &allowed_empty : NULL;
 }
 
-int write_wireguard_packet(const void *packet, size_t length,
+int write_wireguard_packet(const void *packet, size_t length, jint uid,
                            ssize_t *written, int *write_errno) {
     (void) packet;
+    (void) uid;
     wireguard_writes++;
     if (written != NULL)
         *written = (ssize_t) length;
