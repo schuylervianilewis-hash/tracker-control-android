@@ -161,6 +161,7 @@ static void write_stateless_tcp_reset(const struct arguments *args, int version,
     const struct tcphdr *tcphdr = (struct tcphdr *) payload;
     struct tcp_session rst;
     memset(&rst, 0, sizeof(rst));
+    rst.uid = -1;
     rst.version = version;
     rst.source = tcphdr->source;
     rst.dest = tcphdr->dest;
