@@ -1,5 +1,5 @@
-//! IpSend to the VpnService TUN fd, with DNS inspection and response policy
-//! applied to decrypted inbound packets on the way through.
+//! IpSend to the VpnService TUN fd, with DNS inspection, reverse-flow UID
+//! attribution, and shared download pacing applied to decrypted packets.
 
 use std::io;
 use std::os::fd::{AsRawFd, OwnedFd};
