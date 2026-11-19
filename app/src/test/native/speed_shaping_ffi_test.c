@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     int64_t shared_wait = reserve(0, 10001, 1000, 0);
     CHECK(shared_wait > 0, "cross-caller aggregate reservation is paced");
     CHECK(reserve(1, 10001, 3000, 0) > 0, "download bucket is independently paced");
-    CHECK(reserve(0, -1, 1000, 0) == -1, "unknown UID fails closed");
+    CHECK(reserve(0, -1, 1000, 0) > 0, "unknown UID is globally shaped, not exempt");
     CHECK(reserve(0, -1, 1000, 1) == 0, "explicit DNS exception bypasses shaping");
 
     int32_t exempt_uid = 10002;
@@ -95,6 +95,14 @@ int main(int argc, char **argv) {
                   "Rust decoder accepts C socketpair envelope");
             CHECK(uid == 12345, "Rust decoder recovers trusted C-side UID");
             CHECK(packet_len == sizeof(packet), "Rust decoder recovers raw IP packet length");
+
+            // Unknown attribution is valid metadata: Rust must still globally
+            // shape this packet rather than reject it or treat it as exempt.
+            put_u32_le(received + 8, UINT32_MAX);
+            CHECK(decode(received, (size_t) got, &uid, &packet_len) == 0,
+                  "Rust decoder accepts unknown UID metadata");
+            CHECK(uid == -1, "Rust decoder preserves unknown UID sentinel");
+            put_u32_le(received + 8, 12345);
             CHECK(memcmp(received + HEADER_LEN, packet, sizeof(packet)) == 0,
                   "raw IP packet bytes remain unchanged");
             CHECK(decode(received, (size_t) got - 1, &uid, &packet_len) == -1,
