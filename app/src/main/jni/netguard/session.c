@@ -18,6 +18,7 @@
 */
 
 #include "netguard.h"
+#include <sys/timerfd.h>
 
 void clear(struct context *ctx) {
     struct ng_session *s = ctx->ng_session;
