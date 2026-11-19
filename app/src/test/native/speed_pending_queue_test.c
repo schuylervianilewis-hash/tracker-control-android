@@ -98,6 +98,29 @@ static void test_input_validation(void) {
     speed_pending_queue_clear(&queue);
 }
 
+static void test_backpressure_watermarks(void) {
+    struct speed_pending_queue queue;
+    const uint8_t packet[] = {1};
+    uint8_t *out = NULL;
+    size_t length = 0;
+    CHECK(speed_pending_queue_init(&queue, 4, 128) == 0, "initialize watermark queue");
+    CHECK(!speed_pending_queue_should_pause(&queue), "empty queue does not pause readers");
+    CHECK(speed_pending_queue_push(&queue, 10, packet, sizeof(packet)) == 0,
+          "enqueue watermark packet one");
+    CHECK(speed_pending_queue_push(&queue, 20, packet, sizeof(packet)) == 0,
+          "enqueue watermark packet two");
+    CHECK(!speed_pending_queue_should_pause(&queue), "queue below high watermark stays active");
+    CHECK(speed_pending_queue_push(&queue, 30, packet, sizeof(packet)) == 0,
+          "enqueue watermark packet three");
+    CHECK(speed_pending_queue_should_pause(&queue), "high watermark pauses readers");
+    CHECK(speed_pending_queue_pop_ready(&queue, 10, &out, &length) == 1,
+          "pop packet to cross low watermark");
+    free(out);
+    CHECK(speed_pending_queue_should_resume(&queue),
+          "queue below low watermark resumes readers");
+    speed_pending_queue_clear(&queue);
+}
+
 static void test_dispatch_metadata_round_trip(void) {
     struct speed_pending_queue queue;
     const uint8_t packet[] = {9, 8, 7};
@@ -136,6 +159,7 @@ int main(void) {
     test_packet_and_byte_bounds();
     test_input_validation();
     test_dispatch_metadata_round_trip();
+    test_backpressure_watermarks();
     if (failures != 0) {
         fprintf(stderr, "speed_pending_queue_test: %d failure(s)\n", failures);
         return EXIT_FAILURE;
