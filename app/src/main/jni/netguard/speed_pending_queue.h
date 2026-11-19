@@ -65,6 +65,9 @@ int speed_pending_queue_pop_ready(struct speed_pending_queue *queue,
                                   size_t *packet_len_out);
 
 /* 1 = deadline available, 0 = queue empty. */
+int speed_pending_queue_should_pause(const struct speed_pending_queue *queue);
+int speed_pending_queue_should_resume(const struct speed_pending_queue *queue);
+
 int speed_pending_queue_next_deadline(const struct speed_pending_queue *queue,
                                       uint64_t *deadline_ns_out);
 
