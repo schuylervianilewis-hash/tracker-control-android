@@ -50,6 +50,16 @@ static jint bridge_override = -1;
 static int bridge_default = 1;
 
 static int bridge_abi(void) { return 2; }
+static int bridge_speed_configure(uint64_t upload, uint64_t download,
+                                  const int32_t *uids, size_t count) {
+    (void) upload; (void) download; (void) uids; (void) count;
+    return 0;
+}
+static int64_t bridge_speed_reserve(int32_t direction, int32_t uid,
+                                    size_t bytes, int32_t dns_port_53) {
+    (void) direction; (void) uid; (void) bytes; (void) dns_port_53;
+    return 0;
+}
 static void bridge_set(const jint *uids, int count, int default_tunnel) {
     CHECK(count <= 1, "fixture supports one routing override");
     bridge_override = count > 0 ? uids[0] : -1;
@@ -86,6 +96,8 @@ void *__wrap_dlsym(void *handle, const char *name) {
     if (strcmp(name, "tc_policy_is_tunnel_uid") == 0) return (void *) bridge_is_tunnel;
     if (strcmp(name, "tc_policy_wants_tunnel") == 0) return (void *) bridge_wants;
     if (strcmp(name, "tc_policy_dest_tunnelled") == 0) return (void *) bridge_dest_tunnelled;
+    if (strcmp(name, "tc_speed_prototype_configure") == 0) return (void *) bridge_speed_configure;
+    if (strcmp(name, "tc_speed_prototype_reserve") == 0) return (void *) bridge_speed_reserve;
     CHECK(0, "policy bridge requests a recognised symbol");
     return NULL;
 }
