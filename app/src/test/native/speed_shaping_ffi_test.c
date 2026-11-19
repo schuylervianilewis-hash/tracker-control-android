@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     int64_t shared_wait = reserve(0, 10001, 1000, 0);
     CHECK(shared_wait > 0, "cross-caller aggregate reservation is paced");
     CHECK(reserve(1, 10001, 3000, 0) > 0, "download bucket is independently paced");
-    CHECK(reserve(0, -1, 1000, 0) == -1, "unknown UID fails closed");
+    CHECK(reserve(0, -1, 1000, 0) > 0, "unknown UID is globally shaped, not exempt");
     CHECK(reserve(0, -1, 1000, 1) == 0, "explicit DNS exception bypasses shaping");
 
     int32_t exempt_uid = 10002;
