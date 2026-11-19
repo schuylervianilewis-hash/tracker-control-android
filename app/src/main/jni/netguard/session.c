@@ -32,6 +32,7 @@ void clear(struct context *ctx) {
         ng_free(p, __FILE__, __LINE__);
     }
     ctx->ng_session = NULL;
+    speed_pending_queue_clear(&ctx->speed_queue);
 }
 
 void *handle_events(void *a) {
@@ -62,6 +63,31 @@ void *handle_events(void *a) {
         report_exit(args, error, "epoll create error %d: %s", error, strerror(error));
         args->ctx->stopping = 1;
         goto cleanup;
+    }
+
+    // A single timerfd releases delayed Direct uploads and TUN downloads.
+    // All queue operations remain confined to this event-loop thread.
+    struct epoll_event ev_speed;
+    memset(&ev_speed, 0, sizeof(ev_speed));
+    args->ctx->speed_timer_fd = timerfd_create(CLOCK_MONOTONIC,
+                                               TFD_NONBLOCK | TFD_CLOEXEC);
+    if (args->ctx->speed_timer_fd < 0) {
+        log_android(ANDROID_LOG_ERROR,
+                    "speed shaping: timerfd create failed errno %d: %s; disabling limiter",
+                    errno, strerror(errno));
+        speed_limit_configure(0, 0, NULL, 0);
+    } else {
+        ev_speed.events = EPOLLIN | EPOLLERR;
+        ev_speed.data.ptr = &ev_speed;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, args->ctx->speed_timer_fd, &ev_speed)) {
+            int error = errno;
+            log_android(ANDROID_LOG_ERROR,
+                        "speed shaping: timerfd epoll add failed errno %d: %s; disabling limiter",
+                        error, strerror(error));
+            close(args->ctx->speed_timer_fd);
+            args->ctx->speed_timer_fd = -1;
+            speed_limit_configure(0, 0, NULL, 0);
+        }
     }
 
     // Monitor stop events
@@ -238,7 +264,10 @@ void *handle_events(void *a) {
             int error = 0;
 
             for (int i = 0; i < ready; i++) {
-                if (ev[i].data.ptr == &ev_pipe) {
+                if (ev[i].data.ptr == &ev_speed) {
+                    speed_pending_drain(args, epoll_fd);
+
+                } else if (ev[i].data.ptr == &ev_pipe) {
                     // Check pipe
                     uint8_t buffer[1];
                     if (read(args->ctx->pipefds[0], buffer, 1) < 0)
@@ -310,6 +339,14 @@ void *handle_events(void *a) {
     }
 
 cleanup:
+    speed_pending_queue_clear(&args->ctx->speed_queue);
+    if (args->ctx->speed_timer_fd >= 0) {
+        if (close(args->ctx->speed_timer_fd))
+            log_android(ANDROID_LOG_WARN, "speed shaping: timerfd close failed: %s",
+                        strerror(errno));
+        args->ctx->speed_timer_fd = -1;
+    }
+
     // Close epoll file
     if (epoll_fd >= 0 && close(epoll_fd))
         log_android(ANDROID_LOG_ERROR,
