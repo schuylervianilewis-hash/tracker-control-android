@@ -38,7 +38,6 @@ impl Direction {
 pub enum ReserveDecision {
     Bypass,
     WaitNanos(u64),
-    UnknownOwner,
 }
 
 #[derive(Clone, Debug)]
@@ -134,13 +133,11 @@ impl AggregateLimiter {
         dns_port_53: bool,
         now_ns: u64,
     ) -> ReserveDecision {
-        // Port 53 is the explicit DNS exception. Other unknown owners remain
-        // fail-closed instead of becoming an accidental shaping exemption.
-        if dns_port_53 || self.exempt_uids.contains(&uid) {
+        // Port 53 and explicitly configured, known app UIDs are exceptions.
+        // An unknown UID is not an exception: preserve existing traffic and
+        // charge it to the aggregate bucket rather than dropping or bypassing it.
+        if dns_port_53 || (uid >= 0 && self.exempt_uids.contains(&uid)) {
             return ReserveDecision::Bypass;
-        }
-        if uid < 0 {
-            return ReserveDecision::UnknownOwner;
         }
         ReserveDecision::WaitNanos(
             self.buckets[direction.index()].reserve(now_ns, bytes),
@@ -308,9 +305,8 @@ pub unsafe extern "C" fn tc_speed_prototype_configure(
 /// Reserves bytes against the shared aggregate bucket.
 ///
 /// direction: 0 = upload, 1 = download.
-/// Returns wait nanoseconds, 0 for explicit bypass/unlimited, or -1 when the
-/// UID is unknown or the direction is invalid. Production integration must
-/// hold/drop unknown-owner traffic rather than interpreting -1 as unlimited.
+/// Returns wait nanoseconds, 0 for explicit bypass/unlimited, or -1 for an
+/// invalid direction. Unknown UIDs are still charged to the global bucket.
 #[no_mangle]
 pub extern "C" fn tc_speed_prototype_reserve(
     direction: i32,
@@ -333,7 +329,6 @@ pub extern "C" fn tc_speed_prototype_reserve(
     ) {
         ReserveDecision::Bypass => 0,
         ReserveDecision::WaitNanos(wait) => wait.min(i64::MAX as u64) as i64,
-        ReserveDecision::UnknownOwner => -1,
     }
 }
 
@@ -394,11 +389,15 @@ mod tests {
     }
 
     #[test]
-    fn unknown_owner_is_not_an_implicit_exemption() {
+    fn unknown_owner_is_globally_shaped_without_being_dropped() {
         let mut limiter = AggregateLimiter::new(1_000, 1_000);
         assert_eq!(
-            limiter.reserve(Direction::Download, -1, 1_500, false, 0),
-            ReserveDecision::UnknownOwner
+            wait(limiter.reserve(Direction::Download, -1, 1_500, false, 0)),
+            0
+        );
+        assert!(
+            wait(limiter.reserve(Direction::Download, -1, 1_500, false, 0)) > 0,
+            "unknown UID must consume the same aggregate download bucket"
         );
     }
 
