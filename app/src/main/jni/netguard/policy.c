@@ -122,9 +122,9 @@ static uint64_t speed_monotonic_ns(void) {
     return (uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec;
 }
 
-void speed_pending_arm(struct context *ctx) {
+int speed_pending_arm(struct context *ctx) {
     if (ctx == NULL || ctx->speed_timer_fd < 0)
-        return;
+        return 0;
 
     struct itimerspec timer;
     memset(&timer, 0, sizeof(timer));
@@ -133,9 +133,15 @@ void speed_pending_arm(struct context *ctx) {
         timer.it_value.tv_sec = (time_t) (deadline_ns / 1000000000ULL);
         timer.it_value.tv_nsec = (long) (deadline_ns % 1000000000ULL);
     }
-    if (timerfd_settime(ctx->speed_timer_fd, TFD_TIMER_ABSTIME, &timer, NULL) < 0)
-        log_android(ANDROID_LOG_ERROR, "speed shaping: timer arm failed errno %d: %s",
-                    errno, strerror(errno));
+    if (timerfd_settime(ctx->speed_timer_fd, TFD_TIMER_ABSTIME, &timer, NULL) < 0) {
+        size_t dropped = ctx->speed_queue.packet_count;
+        speed_pending_queue_clear(&ctx->speed_queue);
+        log_android(ANDROID_LOG_ERROR,
+                    "speed shaping: timer arm failed errno %d: %s; cleared %zu queued packets",
+                    errno, strerror(errno), dropped);
+        return -1;
+    }
+    return 0;
 }
 
 int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
@@ -192,7 +198,8 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
         return -1;
     }
 
-    speed_pending_arm(args->ctx);
+    if (speed_pending_arm(args->ctx) < 0)
+        return -1;
     return 1;
 }
 
