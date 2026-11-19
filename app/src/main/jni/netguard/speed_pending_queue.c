@@ -106,6 +106,24 @@ int speed_pending_queue_pop_ready(struct speed_pending_queue *queue,
                                             packet_len_out, NULL);
 }
 
+int speed_pending_queue_should_pause(const struct speed_pending_queue *queue) {
+    if (queue == NULL || queue->max_packets == 0 || queue->max_bytes == 0)
+        return 0;
+    size_t packet_limit = queue->max_packets > 1 ? queue->max_packets - 1
+                                                  : queue->max_packets;
+    size_t byte_margin = 65535;
+    size_t byte_limit = queue->max_bytes > byte_margin
+                            ? queue->max_bytes - byte_margin : queue->max_bytes;
+    return queue->packet_count >= packet_limit || queue->queued_bytes >= byte_limit;
+}
+
+int speed_pending_queue_should_resume(const struct speed_pending_queue *queue) {
+    if (queue == NULL || queue->max_packets == 0 || queue->max_bytes == 0)
+        return 1;
+    return queue->packet_count < queue->max_packets / 2 &&
+           queue->queued_bytes < queue->max_bytes / 2;
+}
+
 int speed_pending_queue_next_deadline(const struct speed_pending_queue *queue,
                                       uint64_t *deadline_ns_out) {
     if (queue == NULL || deadline_ns_out == NULL)
