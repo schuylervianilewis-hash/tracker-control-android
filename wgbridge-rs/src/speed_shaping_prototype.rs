@@ -1,10 +1,8 @@
-//! Isolated feasibility prototype for a single aggregate limiter shared by
-//! NetGuard's C Direct path and the Rust WireGuard bridge.
+//! Shared aggregate limiter for NetGuard's Direct and WireGuard datapaths.
 //!
-//! This module is deliberately NOT wired into packet forwarding. It proves
-//! the shared-state and reverse-flow-attribution primitives before either
-//! datapath is changed. The exported C ABI can be resolved by the existing
-//! libwgbridge.so dlopen pattern in netguard/policy.c.
+//! The Rust WireGuard transport now uses the upload/download reservations and
+//! reverse-flow owner map. The native C Direct path is the remaining integration
+//! target and can resolve the exported ABI through the existing dlopen pattern.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock, PoisonError};
@@ -187,6 +185,11 @@ impl FlowKey {
             destination_port: self.source_port,
         }
     }
+
+    /// True when either endpoint is the conventional DNS port.
+    pub fn is_dns_port_53(self) -> bool {
+        self.source_port == 53 || self.destination_port == 53
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -263,7 +266,7 @@ fn global_limiter() -> &'static Mutex<AggregateLimiter> {
     LIMITER.get_or_init(|| Mutex::new(AggregateLimiter::new(0, 0)))
 }
 
-fn monotonic_now_ns() -> u64 {
+pub fn monotonic_now_ns() -> u64 {
     static ORIGIN: OnceLock<Instant> = OnceLock::new();
     let origin = ORIGIN.get_or_init(Instant::now);
     origin.elapsed().as_nanos().min(u64::MAX as u128) as u64
@@ -468,7 +471,10 @@ mod tests {
             shared_wait > 0 && shared_wait <= 80_000_000,
             "expected a positive shared-bucket wait no greater than 80 ms, got {shared_wait}"
         );
-        assert_eq!(tc_speed_prototype_reserve(0, -1, 1_000, 0), -1);
+        // Unknown owners are charged to the global bucket; only the
+        // explicit DNS exception bypasses shaping.
+        let unknown_wait = tc_speed_prototype_reserve(0, -1, 1_000, 0);
+        assert!(unknown_wait > 0, "unknown UID must remain globally shaped");
         assert_eq!(tc_speed_prototype_reserve(0, -1, 1_000, 1), 0);
     }
 }

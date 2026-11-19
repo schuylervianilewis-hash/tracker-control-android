@@ -4,7 +4,7 @@
 
 use std::io;
 use std::os::fd::{FromRawFd, OwnedFd};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use gotatun::device::Device;
@@ -13,6 +13,7 @@ use tokio::runtime::Runtime;
 
 use crate::callbacks::{BridgeLogger, DnsSink, SocketProtector};
 use crate::config::{parse_uapi_config, PeerConfig};
+use crate::speed_shaping_prototype::FlowOwnerMap;
 use crate::transport::{ProtectedUdpFactory, SocketpairRecv, Transports, TunFdSend};
 
 /// Interval the keepalive prod temporarily applies to force traffic (and, if
@@ -62,8 +63,8 @@ fn dup_fd(fd: i32) -> io::Result<OwnedFd> {
 /// Boots gotatun.
 ///
 /// * `uapi_config`   – UAPI text produced by WgConfig.toUapi() on the Java side.
-/// * `outbound_rx_fd`– read end of a socketpair held by C; C writes raw IP
-///   packets, gotatun reads them as its "TUN".
+/// * `outbound_rx_fd`– read end of a socketpair held by C; C writes TCS1
+///   UID+IP datagrams, which the custom IpRecv decodes before gotatun sees them.
 /// * `tun_write_fd`  – VpnService TUN fd; decrypted inbound IP packets are
 ///   written here.
 /// * `mtu`           – payload MTU (typically 1420).
@@ -95,6 +96,10 @@ pub fn start_tunnel(
     let tun_write_failures_streak = Arc::new(std::sync::atomic::AtomicU64::new(0));
     let stats_total = Arc::clone(&tun_write_failures_total);
     let stats_streak = Arc::clone(&tun_write_failures_streak);
+    let flow_owners = Arc::new(Mutex::new(FlowOwnerMap::new(
+        8_192,
+        300_000_000_000,
+    )));
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
@@ -106,12 +111,13 @@ pub fn start_tunnel(
 
     let device = runtime
         .block_on(async {
-            let ip_recv = SocketpairRecv::new(rx_fd, mtu)?;
+            let ip_recv = SocketpairRecv::new(rx_fd, mtu, Arc::clone(&flow_owners))?;
             let ip_send = TunFdSend::with_counters(
                 tx_fd,
                 dns,
                 Arc::clone(&tun_write_failures_total),
                 Arc::clone(&tun_write_failures_streak),
+                Arc::clone(&flow_owners),
             );
             gotatun::device::build()
                 .with_udp(ProtectedUdpFactory::new(protector))

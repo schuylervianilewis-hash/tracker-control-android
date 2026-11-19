@@ -1,16 +1,21 @@
-//! IpSend to the VpnService TUN fd, with DNS inspection and response policy
-//! applied to decrypted inbound packets on the way through.
+//! IpSend to the VpnService TUN fd, with DNS inspection, reverse-flow UID
+//! attribution, and shared download pacing applied to decrypted packets.
 
 use std::io;
 use std::os::fd::{AsRawFd, OwnedFd};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use gotatun::packet::{Ip, Packet};
 use gotatun::tun::IpSend;
 
 use crate::callbacks::DnsSink;
 use crate::dns::DnsInspector;
+use crate::speed_shaping_integration::flow_key_from_ip_packet;
+use crate::speed_shaping_prototype::{
+    monotonic_now_ns, tc_speed_prototype_reserve, FlowOwnerMap,
+};
 
 pub struct TunFdSend {
     fd: Arc<OwnedFd>,
@@ -18,6 +23,7 @@ pub struct TunFdSend {
     dns_inspector: DnsInspector,
     write_failures_total: Arc<AtomicU64>,
     write_failures_streak: Arc<AtomicU64>,
+    owners: Arc<Mutex<FlowOwnerMap>>,
 }
 
 impl TunFdSend {
@@ -28,6 +34,7 @@ impl TunFdSend {
             dns,
             Arc::new(AtomicU64::new(0)),
             Arc::new(AtomicU64::new(0)),
+            Arc::new(Mutex::new(FlowOwnerMap::new(8_192, 300_000_000_000))),
         )
     }
 
@@ -38,6 +45,7 @@ impl TunFdSend {
         dns: Option<Arc<dyn DnsSink>>,
         write_failures_total: Arc<AtomicU64>,
         write_failures_streak: Arc<AtomicU64>,
+        owners: Arc<Mutex<FlowOwnerMap>>,
     ) -> Self {
         Self {
             fd: Arc::new(fd),
@@ -45,6 +53,7 @@ impl TunFdSend {
             dns_inspector: DnsInspector::default(),
             write_failures_total,
             write_failures_streak,
+            owners,
         }
     }
 }
@@ -81,6 +90,31 @@ impl IpSend for TunFdSend {
         }
 
         let data = packet.as_ref();
+        let flow = flow_key_from_ip_packet(data);
+        let dns_port_53 = flow.map(|key| key.is_dns_port_53()).unwrap_or(false);
+        let uid = flow
+            .and_then(|key| {
+                self.owners
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .lookup_inbound(key, monotonic_now_ns())
+            })
+            .unwrap_or(-1);
+
+        // The decrypted response is charged to the same aggregate download
+        // bucket as Direct traffic. Unknown/expired owners are still shaped.
+        let wait_ns = tc_speed_prototype_reserve(
+            1,
+            uid,
+            data.len(),
+            if dns_port_53 { 1 } else { 0 },
+        );
+        if wait_ns > 0 {
+            tokio::time::sleep(Duration::from_nanos(wait_ns as u64)).await;
+        } else if wait_ns < 0 {
+            log::error!("speed limiter rejected WireGuard download reservation");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
 
         let n = write_fd(self.fd.as_raw_fd(), data);
         let (errors, streak) = record_tun_write(
@@ -109,13 +143,14 @@ impl IpSend for TunFdSend {
 #[cfg(test)]
 mod tests {
     use super::{record_tun_write, TunFdSend};
+    use crate::speed_shaping_prototype::FlowOwnerMap;
     use gotatun::packet::{Ip, Packet};
     use gotatun::tun::IpSend;
     use std::fs::OpenOptions;
     use std::os::fd::{FromRawFd, OwnedFd};
     use std::sync::atomic::AtomicU64;
     use std::sync::atomic::Ordering;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     fn minimal_ipv4_packet() -> (Packet<Ip>, [u8; 20]) {
         let bytes = [
@@ -159,6 +194,7 @@ mod tests {
             None,
             Arc::clone(&total),
             Arc::clone(&streak),
+            Arc::new(Mutex::new(FlowOwnerMap::new(16, 30_000_000_000))),
         );
         let (packet, expected) = minimal_ipv4_packet();
 
@@ -187,6 +223,7 @@ mod tests {
             None,
             Arc::clone(&total),
             Arc::clone(&streak),
+            Arc::new(Mutex::new(FlowOwnerMap::new(16, 30_000_000_000))),
         );
 
         for _ in 0..3 {
