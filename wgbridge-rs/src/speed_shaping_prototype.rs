@@ -263,7 +263,7 @@ fn global_limiter() -> &'static Mutex<AggregateLimiter> {
     LIMITER.get_or_init(|| Mutex::new(AggregateLimiter::new(0, 0)))
 }
 
-fn monotonic_now_ns() -> u64 {
+pub fn monotonic_now_ns() -> u64 {
     static ORIGIN: OnceLock<Instant> = OnceLock::new();
     let origin = ORIGIN.get_or_init(Instant::now);
     origin.elapsed().as_nanos().min(u64::MAX as u128) as u64
