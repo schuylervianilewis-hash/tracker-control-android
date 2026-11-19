@@ -20,24 +20,26 @@ compile() {
 }
 compile tcp_defensive_test app/src/test/native/tcp_defensive_test.c \
     app/src/main/jni/netguard/tcp.c app/src/main/jni/netguard/dns_frame.c \
+    app/src/test/native/speed_shaping_test_stub.c \\
     -Wl,--wrap=close -Wl,--wrap=connect -Wl,--wrap=send
 compile udp_defensive_test app/src/test/native/udp_defensive_test.c \
-    app/src/main/jni/netguard/udp.c \
+    app/src/main/jni/netguard/udp.c app/src/test/native/speed_shaping_test_stub.c \
     -Wl,--wrap=close -Wl,--wrap=fcntl -Wl,--wrap=recv \
     -Wl,--wrap=sendto -Wl,--wrap=socket -Wl,--wrap=write
 compile icmp_defensive_test app/src/test/native/icmp_defensive_test.c \
-    app/src/main/jni/netguard/icmp.c \
+    app/src/main/jni/netguard/icmp.c app/src/test/native/speed_shaping_test_stub.c \
     -Wl,--wrap=close -Wl,--wrap=fcntl -Wl,--wrap=sendto -Wl,--wrap=socket
 compile ip_header_test app/src/test/native/ip_header_test.c \
     app/src/test/native/ip_header_failfast.c app/src/main/jni/netguard/ip.c
 compile tcp_window_test app/src/test/native/tcp_window_test.c \
-    app/src/main/jni/netguard/tcp.c
+    app/src/main/jni/netguard/tcp.c \
+    app/src/test/native/speed_shaping_test_stub.c
 compile udp_socket_test app/src/test/native/udp_socket_test.c \
-    app/src/main/jni/netguard/udp.c \
+    app/src/main/jni/netguard/udp.c app/src/test/native/speed_shaping_test_stub.c \
     -Wl,--wrap=close -Wl,--wrap=fcntl -Wl,--wrap=recv \
     -Wl,--wrap=sendto -Wl,--wrap=socket -Wl,--wrap=write
 compile icmp_socket_test app/src/test/native/icmp_socket_test.c \
-    app/src/main/jni/netguard/icmp.c \
+    app/src/main/jni/netguard/icmp.c app/src/test/native/speed_shaping_test_stub.c \
     -Wl,--wrap=close -Wl,--wrap=fcntl -Wl,--wrap=sendto -Wl,--wrap=socket
 compile speed_pending_queue_test app/src/test/native/speed_pending_queue_test.c \
     app/src/main/jni/netguard/speed_pending_queue.c
