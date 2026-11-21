@@ -593,14 +593,8 @@ ssize_t write_udp(const struct arguments *args, const struct udp_session *cur,
                 "UDP sending to tun %d from %s/%u to %s/%u data %u",
                 args->tun, dest, ntohs(cur->dest), source, ntohs(cur->source), len);
 
-    ssize_t res = write(args->tun, buffer, len);
-
-    // Write PCAP record
-    if (res >= 0) {
-        if (pcap_file != NULL)
-            write_pcap_rec(buffer, (size_t) res);
-    } else
-        log_android(ANDROID_LOG_WARN, "UDP write error %d: %s", errno, strerror(errno));
+    ssize_t res = speed_write_tun_packet(args, buffer, len, cur->uid,
+                                         ntohs(cur->dest) == 53);
 
     ng_free(buffer, __FILE__, __LINE__);
 

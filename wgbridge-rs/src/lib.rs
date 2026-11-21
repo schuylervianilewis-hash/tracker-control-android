@@ -21,7 +21,7 @@ pub mod config;
 pub mod dns;
 pub mod keys;
 pub mod policy;
-// Isolated aggregate-shaping and reverse-owner feasibility prototype; not wired to traffic.
+// Shared aggregate limiter and reverse-flow owner map used by both datapaths.
 pub mod speed_shaping_prototype;
 // Cross-language socketpair/UID and non-blocking scheduling integration tests.
 pub mod speed_shaping_integration;

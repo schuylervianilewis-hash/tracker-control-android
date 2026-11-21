@@ -274,13 +274,14 @@ int monitor_tcp_session(const struct arguments *args, struct ng_session *s, int 
         else if (s->tcp.socks5_tx_len == 0 ||
                  s->tcp.socks5_tx_sent < s->tcp.socks5_tx_len)
             events = events | EPOLLOUT;
-        else
+        else if (!args->ctx->speed_backpressure)
             events = events | EPOLLIN;
     } else if (tcp_state_can_forward(&s->tcp)) {
 
         // Check for incoming data
         uint32_t send_window = get_send_window(&s->tcp);
-        if (!s->tcp.upstream_read_eof && send_window > 0)
+        if (!s->tcp.upstream_read_eof && send_window > 0 &&
+            !args->ctx->speed_backpressure)
             events = events | EPOLLIN;
         // HUP is level-triggered and is reported even when not requested. If
         // unread bytes remain behind a closed app window, arm the descriptor
@@ -635,7 +636,7 @@ void check_tcp_socket(const struct arguments *args,
                         s->tcp.socks5 = SOCKS5_CONNECTED;
                 }
             } else {
-                if ((ev->events & EPOLLIN) &&
+                if ((ev->events & EPOLLIN) && !args->ctx->speed_backpressure &&
                     s->tcp.socks5_tx_len > 0 &&
                     s->tcp.socks5_tx_sent == s->tcp.socks5_tx_len) {
                     ssize_t expected = get_socks5_response_length(&s->tcp);
@@ -809,7 +810,7 @@ void check_tcp_socket(const struct arguments *args,
 
                 uint32_t send_window = get_send_window(&s->tcp);
                 if ((ev->events & EPOLLIN) && send_window > 0 &&
-                    !s->tcp.upstream_read_eof) {
+                    !s->tcp.upstream_read_eof && !args->ctx->speed_backpressure) {
                     s->tcp.time = time(NULL);
 
                     uint32_t buffer_size = (send_window > s->tcp.mss
@@ -1128,6 +1129,7 @@ jboolean handle_tcp(const struct arguments *args,
 
             struct tcp_session rst;
             memset(&rst, 0, sizeof(struct tcp_session));
+            rst.uid = -1;
             rst.version = version;
             rst.local_seq = ntohl(tcphdr->ack_seq);
             rst.remote_seq = ntohl(tcphdr->seq) + datalen + (tcphdr->syn || tcphdr->fin ? 1 : 0);
@@ -1829,20 +1831,8 @@ ssize_t write_tcp(const struct arguments *args, const struct tcp_session *cur,
                 ntohl(tcp->ack_seq) - cur->remote_start,
                 datalen);
 
-    ssize_t res = write(args->tun, buffer, len);
-
-    // Write pcap record
-    if (res >= 0) {
-        if (pcap_file != NULL)
-            write_pcap_rec(buffer, (size_t) res);
-    } else
-        log_android(ANDROID_LOG_ERROR, "TCP write%s%s%s%s data %d error %d: %s",
-                    (tcp->syn ? " SYN" : ""),
-                    (tcp->ack ? " ACK" : ""),
-                    (tcp->fin ? " FIN" : ""),
-                    (tcp->rst ? " RST" : ""),
-                    datalen,
-                    errno, strerror((errno)));
+    ssize_t res = speed_write_tun_packet(args, buffer, len, cur->uid,
+                                         ntohs(cur->dest) == 53);
 
     ng_free(buffer, __FILE__, __LINE__);
 

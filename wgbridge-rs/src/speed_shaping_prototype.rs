@@ -1,8 +1,8 @@
 //! Shared aggregate limiter for NetGuard's Direct and WireGuard datapaths.
 //!
-//! The Rust WireGuard transport now uses the upload/download reservations and
-//! reverse-flow owner map. The native C Direct path is the remaining integration
-//! target and can resolve the exported ABI through the existing dlopen pattern.
+//! The Rust WireGuard transport and native C Direct path share the same
+//! process-wide upload/download buckets through this exported C ABI. Direct
+//! packet pacing is scheduled by the native epoll/timerfd event loop.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock, PoisonError};
@@ -272,12 +272,10 @@ pub fn monotonic_now_ns() -> u64 {
     origin.elapsed().as_nanos().min(u64::MAX as u128) as u64
 }
 
-/// Configures the prototype's one process-wide pair of aggregate buckets.
+/// Configures the process-wide pair of aggregate buckets used by both datapaths.
 ///
 /// # Safety
 /// When exempt_count is nonzero, exempt_uids must point to that many valid i32s.
-/// This symbol is exported for C/Rust boundary feasibility tests only; no
-/// production caller is connected to it.
 #[no_mangle]
 pub unsafe extern "C" fn tc_speed_prototype_configure(
     upload_bytes_per_second: u64,

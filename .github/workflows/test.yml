@@ -99,12 +99,14 @@ jobs:
           cc $COMMON -o /tmp/tcp_half_close_test \
             app/src/test/native/tcp_half_close_test.c \
             app/src/main/jni/netguard/tcp.c \
+            app/src/test/native/speed_shaping_test_stub.c \
             -Wl,--wrap=close -Wl,--wrap=connect -Wl,--wrap=send
           /tmp/tcp_half_close_test
 
           cc $COMMON -o /tmp/udp_socket_test \
             app/src/test/native/udp_socket_test.c \
             app/src/main/jni/netguard/udp.c \
+            app/src/test/native/speed_shaping_test_stub.c \
             -Wl,--wrap=close -Wl,--wrap=fcntl -Wl,--wrap=recv \
             -Wl,--wrap=sendto -Wl,--wrap=socket -Wl,--wrap=write
           /tmp/udp_socket_test
@@ -112,6 +114,7 @@ jobs:
           cc $COMMON -o /tmp/icmp_socket_test \
             app/src/test/native/icmp_socket_test.c \
             app/src/main/jni/netguard/icmp.c \
+            app/src/test/native/speed_shaping_test_stub.c \
             -Wl,--wrap=close -Wl,--wrap=fcntl -Wl,--wrap=sendto \
             -Wl,--wrap=socket
           /tmp/icmp_socket_test
@@ -123,7 +126,8 @@ jobs:
           COMMON="-D_GNU_SOURCE -O1 -g -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections -include app/src/test/native/host_compat/linux_test.h -idirafter app/src/test/native/host_compat -Iapp/src/main/jni/netguard"
           for TEST in tcp_queue tcp_window; do
             cc $COMMON -o /tmp/$TEST \
-              app/src/test/native/${TEST}_test.c app/src/main/jni/netguard/tcp.c
+              app/src/test/native/${TEST}_test.c app/src/main/jni/netguard/tcp.c \
+              app/src/test/native/speed_shaping_test_stub.c
             /tmp/$TEST
           done
           cc $COMMON -o /tmp/route_flow_test \
@@ -135,6 +139,7 @@ jobs:
           /tmp/ip_header_test
           cc $COMMON -o /tmp/tcp_epoll_test \
             app/src/test/native/tcp_epoll_test.c app/src/main/jni/netguard/tcp.c \
+            app/src/test/native/speed_shaping_test_stub.c \
             -Wl,--wrap=close -Wl,--wrap=connect -Wl,--wrap=send
           /tmp/tcp_epoll_test
 
@@ -161,6 +166,23 @@ jobs:
 
       - name: Run unit tests
         run: ./gradlew testGithubDebugUnitTest --offline
+
+      - name: Build ARM64 Vianshield debug APK
+        run: ./gradlew :app:assembleGithubDebug -PtargetAbis=arm64-v8a
+
+      - name: Verify ARM64 WireGuard bridge in APK
+        run: |
+          APK=$(find app/build/outputs/apk/github/debug -type f -name '*.apk' -print -quit)
+          test -n "$APK"
+          test "$(unzip -Z1 "$APK" "lib/arm64-v8a/libwgbridge.so")" = "lib/arm64-v8a/libwgbridge.so"
+
+      - name: Upload ARM64 debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vianshield-github-debug-arm64-apk
+          path: app/build/outputs/apk/github/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
 
   instrumentation:
     runs-on: ubuntu-latest
