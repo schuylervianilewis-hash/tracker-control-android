@@ -161,6 +161,7 @@ static void write_stateless_tcp_reset(const struct arguments *args, int version,
     const struct tcphdr *tcphdr = (struct tcphdr *) payload;
     struct tcp_session rst;
     memset(&rst, 0, sizeof(rst));
+    rst.uid = -1;
     rst.version = version;
     rst.source = tcphdr->source;
     rst.dest = tcphdr->dest;
@@ -422,6 +423,22 @@ int is_play = 0;
 // split ClientHello, and freed as soon as the record is complete or the cap is
 // reached, so the battery/memory cost stays bounded and confined to is_play.
 #define TLS_SNI_MAX_BUFFER 16384
+
+void dispatch_direct_packet(const struct arguments *args,
+                            const uint8_t *packet, size_t length,
+                            uint8_t protocol, size_t payload_offset,
+                            jint uid, struct allowed *redirect, int epoll_fd) {
+    if (packet == NULL || payload_offset >= length)
+        return;
+
+    const uint8_t *payload = packet + payload_offset;
+    if (protocol == IPPROTO_ICMP || protocol == IPPROTO_ICMPV6)
+        handle_icmp(args, packet, length, payload, uid, epoll_fd);
+    else if (protocol == IPPROTO_UDP)
+        handle_udp(args, packet, length, payload, uid, redirect, epoll_fd);
+    else if (protocol == IPPROTO_TCP)
+        handle_tcp(args, packet, length, payload, uid, 1, redirect, epoll_fd);
+}
 
 void handle_ip(const struct arguments *args,
                const uint8_t *pkt, const size_t length,
@@ -1036,13 +1053,21 @@ void handle_ip(const struct arguments *args,
             return;
         }
 
-        if (protocol == IPPROTO_ICMP || protocol == IPPROTO_ICMPV6)
-            handle_icmp(args, pkt, length, payload, uid, epoll_fd);
-        else if (protocol == IPPROTO_UDP)
-            handle_udp(args, pkt, length, payload, uid, redirect, epoll_fd);
-        else if (protocol == IPPROTO_TCP)
-            handle_tcp(args, pkt, length, payload, uid, allowed, redirect, epoll_fd);
-        else {
+        if (protocol == IPPROTO_ICMP || protocol == IPPROTO_ICMPV6 ||
+            protocol == IPPROTO_UDP || protocol == IPPROTO_TCP) {
+            int dns_port_53 = (dport == 53 &&
+                               (protocol == IPPROTO_UDP || protocol == IPPROTO_TCP));
+            int queued = speed_shape_or_queue(args, 0, SPEED_PENDING_DIRECT_UPLOAD,
+                                              pkt, length, uid, dns_port_53,
+                                              protocol, (size_t) (payload - pkt),
+                                              redirect);
+            if (queued < 0)
+                return;
+            if (queued == 0)
+                dispatch_direct_packet(args, pkt, length, protocol,
+                                       (size_t) (payload - pkt), uid,
+                                       redirect, epoll_fd);
+        } else {
             // Allowed but undispatchable: no L4 handler for this protocol
             // (in practice a Fragment/ESP-stopped ext-header walk, see
             // above). Drop visibly rather than vanish silently, but

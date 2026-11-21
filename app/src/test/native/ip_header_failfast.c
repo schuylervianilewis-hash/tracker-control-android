@@ -34,3 +34,5 @@ void tcp_owner_forget(void) { abort(); }
 void tcp_owner_reset(void) { abort(); }
 void write_tcp(void) { abort(); }
 void hex2bytes(void) { abort(); }
+
+int speed_shape_or_queue(void) { abort(); }

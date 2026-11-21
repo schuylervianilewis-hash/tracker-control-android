@@ -25,11 +25,13 @@
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <stdatomic.h>
+#include <sys/timerfd.h>
 
 #define POLICY_ABI_VERSION 2
 
 static pthread_once_t policy_once = PTHREAD_ONCE_INIT;
 static int policy_ok = 0;
+static int speed_ok = 0;
 
 static int (*p_abi_version)(void) = NULL;
 static void (*p_set_route_uids)(const jint *uids, int count, int default_tunnel) = NULL;
@@ -37,6 +39,10 @@ static void (*p_clear_route_uids)(void) = NULL;
 static int (*p_is_tunnel_uid)(jint uid) = NULL;
 static int (*p_wants_tunnel)(int local_dest, int is_dns, int tunnel_uid, int dns_direct) = NULL;
 static int (*p_dest_tunnelled)(int version, const void *daddr) = NULL;
+static int (*p_speed_configure)(uint64_t upload_bps, uint64_t download_bps,
+                                const int32_t *uids, size_t uid_count) = NULL;
+static int64_t (*p_speed_reserve)(int32_t direction, int32_t uid,
+                                  size_t bytes, int32_t dns_port_53) = NULL;
 
 // Facts the packet path reads per packet. Mirrored here rather than queried
 // across the boundary: with no per-app override configured — the shipped
@@ -58,6 +64,12 @@ static void policy_load() {
         log_android(ANDROID_LOG_ERROR, "policy: cannot load libwgbridge: %s", dlerror());
         return;
     }
+
+    p_speed_configure = dlsym(handle, "tc_speed_prototype_configure");
+    p_speed_reserve = dlsym(handle, "tc_speed_prototype_reserve");
+    speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL;
+    if (!speed_ok)
+        log_android(ANDROID_LOG_WARN, "speed shaping: shared limiter symbols unavailable");
 
     p_abi_version = dlsym(handle, "tc_policy_abi_version");
     p_set_route_uids = dlsym(handle, "tc_policy_set_route_uids");
@@ -85,6 +97,202 @@ static void policy_load() {
 void policy_ensure() {
     pthread_once(&policy_once, policy_load);
 }
+
+int speed_limit_configure(uint64_t upload_bytes_per_second,
+                          uint64_t download_bytes_per_second,
+                          const jint *exempt_uids, size_t exempt_count) {
+    policy_ensure();
+    if (!speed_ok)
+        return -1;
+    return p_speed_configure(upload_bytes_per_second, download_bytes_per_second,
+                             (const int32_t *) exempt_uids, exempt_count);
+}
+
+int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_53) {
+    policy_ensure();
+    if (!speed_ok)
+        return 0;
+    return p_speed_reserve(direction, uid, bytes, dns_port_53);
+}
+
+static uint64_t speed_monotonic_ns(void) {
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+        return 0;
+    return (uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec;
+}
+
+int speed_pending_arm(struct context *ctx) {
+    if (ctx == NULL || ctx->speed_timer_fd < 0)
+        return 0;
+
+    struct itimerspec timer;
+    memset(&timer, 0, sizeof(timer));
+    uint64_t deadline_ns = 0;
+    if (speed_pending_queue_next_deadline(&ctx->speed_queue, &deadline_ns)) {
+        timer.it_value.tv_sec = (time_t) (deadline_ns / 1000000000ULL);
+        timer.it_value.tv_nsec = (long) (deadline_ns % 1000000000ULL);
+    }
+    if (timerfd_settime(ctx->speed_timer_fd, TFD_TIMER_ABSTIME, &timer, NULL) < 0) {
+        size_t dropped = ctx->speed_queue.packet_count;
+        speed_pending_queue_clear(&ctx->speed_queue);
+        log_android(ANDROID_LOG_ERROR,
+                    "speed shaping: timer arm failed errno %d: %s; cleared %zu queued packets",
+                    errno, strerror(errno), dropped);
+        return -1;
+    }
+    return 0;
+}
+
+int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
+                         const uint8_t *packet, size_t length, jint uid,
+                         int dns_port_53, int protocol, size_t payload_offset,
+                         const struct allowed *redirect) {
+    if (args == NULL || args->ctx == NULL || packet == NULL || length == 0)
+        return -1;
+
+    int64_t wait_ns = speed_limit_reserve(direction, uid, length, dns_port_53);
+    if (wait_ns <= 0)
+        return 0;
+
+    static _Atomic int upload_pacing_logged = 0;
+    static _Atomic int download_pacing_logged = 0;
+    _Atomic int *logged = (kind == SPEED_PENDING_DIRECT_UPLOAD
+                           ? &upload_pacing_logged : &download_pacing_logged);
+    if (atomic_exchange_explicit(logged, 1, memory_order_relaxed) == 0)
+        log_android(ANDROID_LOG_WARN,
+                    "speed shaping: Direct %s pacing active",
+                    kind == SPEED_PENDING_DIRECT_UPLOAD ? "upload" : "download");
+
+    if (args->ctx->speed_timer_fd < 0)
+        return 0;
+
+    uint64_t now_ns = speed_monotonic_ns();
+    if (now_ns == 0 || (uint64_t) wait_ns > UINT64_MAX - now_ns)
+        return 0;
+
+    struct speed_pending_metadata metadata;
+    memset(&metadata, 0, sizeof(metadata));
+    metadata.kind = kind;
+    metadata.protocol = protocol;
+    metadata.uid = uid;
+    metadata.payload_offset = payload_offset;
+    if (redirect != NULL) {
+        metadata.has_redirect = 1;
+        metadata.redirect_port = redirect->rport;
+        memcpy(metadata.redirect_addr, redirect->raddr,
+               sizeof(metadata.redirect_addr) - 1);
+        metadata.redirect_addr[sizeof(metadata.redirect_addr) - 1] = '\0';
+    }
+
+    int rc = speed_pending_queue_push_ex(&args->ctx->speed_queue,
+                                         now_ns + (uint64_t) wait_ns,
+                                         packet, length, &metadata);
+    if (rc == -3) {
+        // Allocation pressure must not turn a TCP pacing decision into a
+        // payload drop. Fail open for this packet and keep firewall policy.
+        static _Atomic int allocation_warning_logged = 0;
+        if (atomic_exchange_explicit(&allocation_warning_logged, 1,
+                                     memory_order_relaxed) == 0)
+            log_android(ANDROID_LOG_WARN,
+                        "speed shaping: queue allocation failed; bypassing pacing for affected packets");
+        return 0;
+    }
+    if (rc != 0) {
+        static _Atomic unsigned long queue_drops = 0;
+        unsigned long count = atomic_fetch_add_explicit(&queue_drops, 1,
+                                                        memory_order_relaxed) + 1;
+        if ((count & 255UL) == 1)
+            log_android(ANDROID_LOG_WARN,
+                        "speed shaping: pending queue rejected %lu packets (status %d)",
+                        count, rc);
+        return -1;
+    }
+
+    if (speed_pending_arm(args->ctx) < 0)
+        return -1;
+    return 1;
+}
+
+extern FILE *pcap_file;
+
+ssize_t speed_write_tun_packet(const struct arguments *args,
+                               const uint8_t *packet, size_t length,
+                               jint uid, int dns_port_53) {
+    int queued = speed_shape_or_queue(args, 1, SPEED_PENDING_TUN_DOWNLOAD,
+                                      packet, length, uid, dns_port_53,
+                                      0, 0, NULL);
+    if (queued > 0)
+        return (ssize_t) length;
+    if (queued < 0)
+        return -1;
+
+    ssize_t written = write(args->tun, packet, length);
+    if (written >= 0 && pcap_file != NULL)
+        write_pcap_rec(packet, (size_t) written);
+    return written;
+}
+
+void speed_pending_dispatch_upload(const struct arguments *args,
+                                   const uint8_t *packet, size_t length,
+                                   const struct speed_pending_metadata *metadata,
+                                   int epoll_fd) {
+    if (metadata == NULL || metadata->kind != SPEED_PENDING_DIRECT_UPLOAD ||
+        metadata->payload_offset >= length)
+        return;
+
+    struct allowed redirect;
+    struct allowed *redirect_ptr = NULL;
+    if (metadata->has_redirect) {
+        memset(&redirect, 0, sizeof(redirect));
+        snprintf(redirect.raddr, sizeof(redirect.raddr), "%s", metadata->redirect_addr);
+        redirect.rport = (uint16_t) metadata->redirect_port;
+        redirect_ptr = &redirect;
+    }
+    dispatch_direct_packet(args, packet, length, (uint8_t) metadata->protocol,
+                           metadata->payload_offset, metadata->uid,
+                           redirect_ptr, epoll_fd);
+}
+
+void speed_pending_drain(const struct arguments *args, int epoll_fd) {
+    if (args == NULL || args->ctx == NULL)
+        return;
+
+    uint64_t expirations;
+    if (args->ctx->speed_timer_fd >= 0) {
+        ssize_t n = read(args->ctx->speed_timer_fd, &expirations, sizeof(expirations));
+        if (n < 0 && errno != EAGAIN && errno != EINTR)
+            log_android(ANDROID_LOG_WARN, "speed shaping: timer read failed: %s",
+                        strerror(errno));
+    }
+
+    for (int i = 0; i < 128; i++) {
+        uint8_t *packet = NULL;
+        size_t length = 0;
+        struct speed_pending_metadata metadata;
+        int rc = speed_pending_queue_pop_ready_ex(&args->ctx->speed_queue,
+                                                  speed_monotonic_ns(),
+                                                  &packet, &length, &metadata);
+        if (rc <= 0)
+            break;
+
+        if (metadata.kind == SPEED_PENDING_DIRECT_UPLOAD) {
+            speed_pending_dispatch_upload(args, packet, length, &metadata, epoll_fd);
+        } else if (metadata.kind == SPEED_PENDING_TUN_DOWNLOAD) {
+            ssize_t written = write(args->tun, packet, length);
+            if (written == (ssize_t) length) {
+                if (pcap_file != NULL)
+                    write_pcap_rec(packet, length);
+            } else
+                log_android(ANDROID_LOG_WARN,
+                            "speed shaping: delayed TUN write %zd/%zu failed errno %d: %s",
+                            written, length, errno, strerror(errno));
+        }
+        free(packet);
+    }
+    speed_pending_arm(args->ctx);
+}
+
 
 void set_route_uids(const jint *uids, int count, int default_tunnel, int dns_direct) {
     policy_ensure();

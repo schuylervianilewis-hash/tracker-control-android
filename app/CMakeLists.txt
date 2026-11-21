@@ -19,6 +19,7 @@ add_library( netguard
              src/main/jni/netguard/dns_frame.c
              src/main/jni/netguard/udp.c
              src/main/jni/netguard/speed_limit.c
+             src/main/jni/netguard/speed_pending_queue.c
              src/main/jni/netguard/icmp.c
              src/main/jni/netguard/dns.c
              src/main/jni/netguard/pcap.c
