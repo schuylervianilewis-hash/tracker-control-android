@@ -126,7 +126,8 @@ jobs:
           COMMON="-D_GNU_SOURCE -O1 -g -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -ffunction-sections -fdata-sections -Wl,--gc-sections -include app/src/test/native/host_compat/linux_test.h -idirafter app/src/test/native/host_compat -Iapp/src/main/jni/netguard"
           for TEST in tcp_queue tcp_window; do
             cc $COMMON -o /tmp/$TEST \
-              app/src/test/native/${TEST}_test.c app/src/main/jni/netguard/tcp.c
+              app/src/test/native/${TEST}_test.c app/src/main/jni/netguard/tcp.c \
+              app/src/test/native/speed_shaping_test_stub.c
             /tmp/$TEST
           done
           cc $COMMON -o /tmp/route_flow_test \
