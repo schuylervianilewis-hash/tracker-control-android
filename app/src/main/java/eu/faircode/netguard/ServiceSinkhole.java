@@ -167,15 +167,21 @@ public class ServiceSinkhole extends VpnService {
     private final Runnable wgStateListener = () -> {
         String err = net.kollnig.missioncontrol.wg.WgEgress.INSTANCE.getLastError();
         if (err != null) {
+            SpeedLogKeeperStore.recordEvent(ServiceSinkhole.this,
+                    SpeedLogKeeperStore.EVENT_WIREGUARD_ERROR);
             showWireGuardErrorNotification(err);
             return;
         }
 
         if (!net.kollnig.missioncontrol.wg.WgEgress.INSTANCE.isRunning()) {
+            SpeedLogKeeperStore.recordEvent(ServiceSinkhole.this,
+                    SpeedLogKeeperStore.EVENT_WIREGUARD_STOPPED);
             clearWireGuardErrorNotification();
             return;
         }
 
+        SpeedLogKeeperStore.recordEvent(ServiceSinkhole.this,
+                SpeedLogKeeperStore.EVENT_WIREGUARD_STARTED);
         Long hs = net.kollnig.missioncontrol.wg.WgEgress.INSTANCE.latestHandshakeMillisOrNull();
         if (hs != null && hs > 0 && System.currentTimeMillis() - hs < 180_000L)
             clearWireGuardErrorNotification();
@@ -237,6 +243,27 @@ public class ServiceSinkhole extends VpnService {
     private volatile CommandHandler commandHandler;
     private volatile LogHandler logHandler;
     private volatile StatsHandler statsHandler;
+
+    private final Runnable speedTelemetrySampler = new Runnable() {
+        @Override
+        public void run() {
+            long[] snapshot = null;
+            synchronized (jni_lock) {
+                if (jni_context != 0) {
+                    try {
+                        snapshot = jni_speed_snapshot(jni_context);
+                    } catch (Throwable ignored) {
+                        // Telemetry must never interfere with VPN service operation.
+                    }
+                }
+            }
+            if (snapshot != null)
+                SpeedLogKeeperStore.recordSnapshot(ServiceSinkhole.this, snapshot, vpnEstablished);
+            Handler handler = statsHandler;
+            if (handler != null)
+                handler.postDelayed(this, 5_000L);
+        }
+    };
 
     // Set at the very end of a fully successful onCreate. onCreate can
     // stopSelf()+return early (e.g. startForeground denied on Android 12+,
@@ -458,6 +485,10 @@ public class ServiceSinkhole extends VpnService {
     private native int jni_get_mtu();
 
     private native int[] jni_get_stats(long context);
+
+    // Aggregate-only speed-shaping counters. The returned array is a fixed
+    // numeric contract and contains no app, UID, DNS, address, port or flow data.
+    private native long[] jni_speed_snapshot(long context);
 
     private static native void jni_pcap(String name, int record_size, int file_size);
 
@@ -3898,6 +3929,7 @@ public class ServiceSinkhole extends VpnService {
         // Native init
         jni_context = jni_init(Build.VERSION.SDK_INT);
         Log.i(TAG, "Created context=" + jni_context);
+        SpeedLogKeeperStore.recordEvent(this, SpeedLogKeeperStore.EVENT_VPN_STARTED);
         boolean pcap = prefs.getBoolean("pcap", false);
         setPcap(pcap, this);
 
@@ -3921,6 +3953,7 @@ public class ServiceSinkhole extends VpnService {
         commandHandler = new CommandHandler(commandLooper);
         logHandler = new LogHandler(logLooper);
         statsHandler = new StatsHandler(statsLooper);
+        statsHandler.postDelayed(speedTelemetrySampler, 5_000L);
         prefs.registerOnSharedPreferenceChangeListener(privateDnsPreferenceListener);
 
         net.kollnig.missioncontrol.wg.WgEgress.INSTANCE.addStateListener(wgStateListener);
@@ -4350,6 +4383,10 @@ public class ServiceSinkhole extends VpnService {
             // onCreate can stopSelf() before creating the handler threads when
             // startForeground is denied (Android 12+); there is nothing to quit
             if (initialized) {
+                if (statsHandler != null)
+                    statsHandler.removeCallbacks(speedTelemetrySampler);
+                SpeedLogKeeperStore.recordEvent(ServiceSinkhole.this,
+                        SpeedLogKeeperStore.EVENT_VPN_STOPPED);
                 commandLooper.quit();
                 logLooper.quit();
                 statsLooper.quit();
