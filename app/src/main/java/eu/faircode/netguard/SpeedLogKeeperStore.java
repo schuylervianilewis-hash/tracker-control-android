@@ -142,18 +142,18 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
                 "queue_bytes INTEGER NOT NULL," +
                 "dropped_packets INTEGER NOT NULL," +
                 "scheduler_errors INTEGER NOT NULL," +
-                "direct_queue_packets INTEGER NOT NULL DEFAULT 0," +
-                "direct_queue_bytes INTEGER NOT NULL DEFAULT 0," +
-                "direct_queue_peak_packets INTEGER NOT NULL DEFAULT 0," +
-                "direct_queue_peak_bytes INTEGER NOT NULL DEFAULT 0," +
-                "wireguard_queue_packets INTEGER NOT NULL DEFAULT 0," +
-                "wireguard_queue_bytes INTEGER NOT NULL DEFAULT 0," +
-                "wireguard_queue_peak_packets INTEGER NOT NULL DEFAULT 0," +
-                "wireguard_queue_peak_bytes INTEGER NOT NULL DEFAULT 0," +
-                "direct_dropped_packets INTEGER NOT NULL DEFAULT 0," +
-                "direct_scheduler_errors INTEGER NOT NULL DEFAULT 0," +
-                "wireguard_dropped_packets INTEGER NOT NULL DEFAULT 0," +
-                "wireguard_scheduler_errors INTEGER NOT NULL DEFAULT 0," +
+                "direct_queue_packets INTEGER NOT NULL DEFAULT -1," +
+                "direct_queue_bytes INTEGER NOT NULL DEFAULT -1," +
+                "direct_queue_peak_packets INTEGER NOT NULL DEFAULT -1," +
+                "direct_queue_peak_bytes INTEGER NOT NULL DEFAULT -1," +
+                "wireguard_queue_packets INTEGER NOT NULL DEFAULT -1," +
+                "wireguard_queue_bytes INTEGER NOT NULL DEFAULT -1," +
+                "wireguard_queue_peak_packets INTEGER NOT NULL DEFAULT -1," +
+                "wireguard_queue_peak_bytes INTEGER NOT NULL DEFAULT -1," +
+                "direct_dropped_packets INTEGER NOT NULL DEFAULT -1," +
+                "direct_scheduler_errors INTEGER NOT NULL DEFAULT -1," +
+                "wireguard_dropped_packets INTEGER NOT NULL DEFAULT -1," +
+                "wireguard_scheduler_errors INTEGER NOT NULL DEFAULT -1," +
                 "shaping_enabled INTEGER NOT NULL," +
                 "vpn_active INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX speed_samples_time ON " + TABLE_SAMPLES + "(timestamp_ms)");
@@ -202,10 +202,10 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         long wireguardSchedulerDelta = delta(v[6], previousWireGuardSchedulerErrors);
         long droppedDelta = directDroppedDelta + wireguardDroppedDelta;
         long schedulerDelta = directSchedulerDelta + wireguardSchedulerDelta;
-        long directPeakPackets = v.length > 15 ? v[15] : 0;
-        long directPeakBytes = v.length > 16 ? v[16] : 0;
-        long wireguardPeakPackets = v.length > 17 ? v[17] : 0;
-        long wireguardPeakBytes = v.length > 18 ? v[18] : 0;
+        long directPeakPackets = v.length > 15 ? v[15] : -1;
+        long directPeakBytes = v.length > 16 ? v[16] : -1;
+        long wireguardPeakPackets = v.length > 17 ? v[17] : -1;
+        long wireguardPeakBytes = v.length > 18 ? v[18] : -1;
 
         ContentValues row = new ContentValues();
         row.put("timestamp_ms", now);
