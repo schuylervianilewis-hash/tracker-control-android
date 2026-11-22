@@ -47,6 +47,7 @@ static int (*p_speed_record)(int32_t direction, uint64_t bytes) = NULL;
 static void (*p_speed_bypass)(uint64_t bytes) = NULL;
 static void (*p_speed_delayed)(uint64_t bytes) = NULL;
 static int (*p_speed_snapshot)(uint64_t *out, size_t out_len) = NULL;
+static void (*p_speed_reset_queue_peaks)(void) = NULL;
 
 // Facts the packet path reads per packet. Mirrored here rather than queried
 // across the boundary: with no per-app override configured — the shipped
@@ -75,6 +76,7 @@ static void policy_load() {
     p_speed_bypass = dlsym(handle, "tc_speed_prototype_bypass");
     p_speed_delayed = dlsym(handle, "tc_speed_prototype_delayed");
     p_speed_snapshot = dlsym(handle, "tc_speed_prototype_snapshot");
+    p_speed_reset_queue_peaks = dlsym(handle, "tc_speed_prototype_reset_queue_peaks");
     speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL &&
                p_speed_record != NULL && p_speed_bypass != NULL && p_speed_delayed != NULL &&
                p_speed_snapshot != NULL;
@@ -116,6 +118,12 @@ int speed_limit_configure(uint64_t upload_bytes_per_second,
         return -1;
     return p_speed_configure(upload_bytes_per_second, download_bytes_per_second,
                              (const int32_t *) exempt_uids, exempt_count);
+}
+
+void speed_limit_reset_queue_peaks(void) {
+    policy_ensure();
+    if (p_speed_reset_queue_peaks != NULL)
+        p_speed_reset_queue_peaks();
 }
 
 int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_53) {
