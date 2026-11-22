@@ -184,18 +184,6 @@ pub extern "C" fn tc_speed_prototype_bypass(bytes: u64) {
 }
 
 #[no_mangle]
-pub extern "C" fn tc_speed_prototype_pending(add: i32, bytes: u64) {
-    let telemetry = global_telemetry();
-    if add != 0 {
-        telemetry.wg_pending_packets.fetch_add(1, Ordering::Relaxed);
-        telemetry.wg_pending_bytes.fetch_add(bytes, Ordering::Relaxed);
-    } else {
-        telemetry.wg_pending_packets.fetch_sub(1, Ordering::Relaxed);
-        telemetry.wg_pending_bytes.fetch_sub(bytes, Ordering::Relaxed);
-    }
-}
-
-#[no_mangle]
 pub extern "C" fn tc_speed_prototype_scheduler_error() {
     record_scheduler_error();
 }
