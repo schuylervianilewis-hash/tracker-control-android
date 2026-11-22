@@ -23,6 +23,7 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
     private static final long RETENTION_MS = 24L * 60L * 60L * 1000L;
     private static final int MAX_SAMPLES = 20_000;
     private static final int MAX_EVENTS = 1_000;
+    private static final long MAX_DATABASE_BYTES = 8L * 1024L * 1024L;
 
     public static final int EVENT_VPN_STARTED = 1;
     public static final int EVENT_VPN_STOPPED = 2;
@@ -122,6 +123,12 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "timestamp_ms INTEGER NOT NULL," +
                 "event_code INTEGER NOT NULL)");
+    }
+
+    @Override
+    public void onOpen(SQLiteDatabase db) {
+        super.onOpen(db);
+        db.setMaximumSize(MAX_DATABASE_BYTES);
     }
 
     @Override
