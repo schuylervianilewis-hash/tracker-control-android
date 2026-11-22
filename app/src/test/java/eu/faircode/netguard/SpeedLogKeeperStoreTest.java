@@ -30,6 +30,12 @@ public class SpeedLogKeeperStoreTest {
                 "id", "timestamp_ms", "upload_bytes_per_second", "download_bytes_per_second",
                 "upload_limit", "download_limit", "delayed_bytes", "bypassed_bytes",
                 "queue_packets", "queue_bytes", "dropped_packets", "scheduler_errors",
+                "direct_queue_packets", "direct_queue_bytes",
+                "direct_queue_peak_packets", "direct_queue_peak_bytes",
+                "wireguard_queue_packets", "wireguard_queue_bytes",
+                "wireguard_queue_peak_packets", "wireguard_queue_peak_bytes",
+                "direct_dropped_packets", "direct_scheduler_errors",
+                "wireguard_dropped_packets", "wireguard_scheduler_errors",
                 "shaping_enabled", "vpn_active"
         )), columns(db, "speed_samples"));
 
@@ -39,6 +45,32 @@ public class SpeedLogKeeperStoreTest {
 
         assertTrue("Speed telemetry database must stay below its 8 MiB cap",
                 db.getMaximumSize() <= 8L * 1024L * 1024L);
+
+        long[] snapshot = new long[19];
+        snapshot[4] = 2; snapshot[5] = 200;
+        snapshot[6] = 4; snapshot[10] = 3;
+        snapshot[11] = 5; snapshot[12] = 500;
+        snapshot[13] = 6; snapshot[14] = 7;
+        snapshot[15] = 9; snapshot[16] = 900;
+        snapshot[17] = 4; snapshot[18] = 400;
+        SpeedLogKeeperStore.recordSnapshot(context, snapshot, true);
+        try (Cursor cursor = db.rawQuery("SELECT queue_packets, queue_bytes, " +
+                "direct_queue_packets, direct_queue_bytes, direct_queue_peak_packets, " +
+                "direct_queue_peak_bytes, wireguard_queue_packets, wireguard_queue_bytes, " +
+                "wireguard_queue_peak_packets, wireguard_queue_peak_bytes " +
+                "FROM speed_samples ORDER BY id DESC LIMIT 1", null)) {
+            assertTrue(cursor.moveToFirst());
+            assertEquals(7L, cursor.getLong(0));
+            assertEquals(700L, cursor.getLong(1));
+            assertEquals(5L, cursor.getLong(2));
+            assertEquals(500L, cursor.getLong(3));
+            assertEquals(9L, cursor.getLong(4));
+            assertEquals(900L, cursor.getLong(5));
+            assertEquals(2L, cursor.getLong(6));
+            assertEquals(200L, cursor.getLong(7));
+            assertEquals(4L, cursor.getLong(8));
+            assertEquals(400L, cursor.getLong(9));
+        }
     }
 
     private Set<String> columns(SQLiteDatabase db, String table) {
