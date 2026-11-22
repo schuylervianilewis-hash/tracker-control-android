@@ -43,6 +43,10 @@ static int (*p_speed_configure)(uint64_t upload_bps, uint64_t download_bps,
                                 const int32_t *uids, size_t uid_count) = NULL;
 static int64_t (*p_speed_reserve)(int32_t direction, int32_t uid,
                                   size_t bytes, int32_t dns_port_53) = NULL;
+static int (*p_speed_record)(int32_t direction, uint64_t bytes) = NULL;
+static void (*p_speed_bypass)(uint64_t bytes) = NULL;
+static void (*p_speed_scheduler_error)(void) = NULL;
+static int (*p_speed_snapshot)(uint64_t *out, size_t out_len) = NULL;
 
 // Facts the packet path reads per packet. Mirrored here rather than queried
 // across the boundary: with no per-app override configured — the shipped
@@ -67,7 +71,13 @@ static void policy_load() {
 
     p_speed_configure = dlsym(handle, "tc_speed_prototype_configure");
     p_speed_reserve = dlsym(handle, "tc_speed_prototype_reserve");
-    speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL;
+    p_speed_record = dlsym(handle, "tc_speed_prototype_record");
+    p_speed_bypass = dlsym(handle, "tc_speed_prototype_bypass");
+    p_speed_scheduler_error = dlsym(handle, "tc_speed_prototype_scheduler_error");
+    p_speed_snapshot = dlsym(handle, "tc_speed_prototype_snapshot");
+    speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL &&
+               p_speed_record != NULL && p_speed_bypass != NULL &&
+               p_speed_scheduler_error != NULL && p_speed_snapshot != NULL;
     if (!speed_ok)
         log_android(ANDROID_LOG_WARN, "speed shaping: shared limiter symbols unavailable");
 
@@ -113,6 +123,31 @@ int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_
     if (!speed_ok)
         return 0;
     return p_speed_reserve(direction, uid, bytes, dns_port_53);
+}
+
+void speed_limit_record(int direction, size_t bytes) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_record(direction, (uint64_t) bytes);
+}
+
+void speed_limit_record_bypass(size_t bytes) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_bypass((uint64_t) bytes);
+}
+
+void speed_limit_scheduler_error(void) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_scheduler_error();
+}
+
+int speed_limit_snapshot(uint64_t *out, size_t out_len) {
+    policy_ensure();
+    if (!speed_ok || out == NULL || out_len < 10)
+        return -1;
+    return p_speed_snapshot(out, out_len);
 }
 
 static uint64_t speed_monotonic_ns(void) {
