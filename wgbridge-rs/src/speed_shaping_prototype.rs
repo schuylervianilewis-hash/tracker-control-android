@@ -129,8 +129,9 @@ fn update_peak(peak: &AtomicU64, value: u64) {
 }
 
 /// Track aggregate WireGuard pending count/bytes and their high-water marks.
-pub fn record_wg_pending(add: bool, bytes: usize) {
-    let telemetry = global_telemetry();
+/// The outbound counter spans the native socketpair write through delivery to
+/// gotatun; inbound pacing guards use the same counters while awaiting a TUN write.
+fn record_wg_pending_on(telemetry: &SpeedTelemetry, add: bool, bytes: usize) {
     if add {
         let packets = telemetry.wg_pending_packets.fetch_add(1, Ordering::Relaxed) + 1;
         let queued_bytes = telemetry.wg_pending_bytes.fetch_add(bytes as u64, Ordering::Relaxed)
@@ -138,9 +139,23 @@ pub fn record_wg_pending(add: bool, bytes: usize) {
         update_peak(&telemetry.wg_peak_pending_packets, packets);
         update_peak(&telemetry.wg_peak_pending_bytes, queued_bytes);
     } else {
-        telemetry.wg_pending_packets.fetch_sub(1, Ordering::Relaxed);
-        telemetry.wg_pending_bytes.fetch_sub(bytes as u64, Ordering::Relaxed);
+        let _ = telemetry.wg_pending_packets.fetch_update(
+            Ordering::Relaxed, Ordering::Relaxed, |value| Some(value.saturating_sub(1)));
+        let _ = telemetry.wg_pending_bytes.fetch_update(
+            Ordering::Relaxed, Ordering::Relaxed,
+            |value| Some(value.saturating_sub(bytes as u64)));
     }
+}
+
+pub fn record_wg_pending(add: bool, bytes: usize) {
+    record_wg_pending_on(global_telemetry(), add, bytes);
+}
+
+fn reset_wg_pending(telemetry: &SpeedTelemetry) -> u64 {
+    let packets = telemetry.wg_pending_packets.swap(0, Ordering::Relaxed);
+    telemetry.wg_pending_bytes.store(0, Ordering::Relaxed);
+    telemetry.wg_dropped_packets.fetch_add(packets, Ordering::Relaxed);
+    packets
 }
 
 pub struct PendingGuard {
@@ -148,8 +163,15 @@ pub struct PendingGuard {
 }
 
 impl PendingGuard {
+    /// Starts tracking a packet that has just entered an asynchronous pacing wait.
     pub fn new(bytes: usize) -> Self {
         record_wg_pending(true, bytes);
+        Self { bytes }
+    }
+
+    /// Tracks a packet already counted by the native socketpair enqueue path.
+    /// Its Drop removes the count when the packet is handed to gotatun or discarded.
+    pub fn from_enqueued(bytes: usize) -> Self {
         Self { bytes }
     }
 }
@@ -170,6 +192,32 @@ pub fn record_delayed(bytes: usize) {
 
 pub fn record_scheduler_error() {
     global_telemetry().wg_scheduler_errors.fetch_add(1, Ordering::Relaxed);
+}
+
+/// Called by the native C writer before publishing a datagram to the
+/// non-blocking WireGuard socketpair, so the reader cannot race the increment.
+#[no_mangle]
+pub extern "C" fn tc_speed_prototype_wg_enqueue(bytes: u64) {
+    record_wg_pending(true, bytes.min(usize::MAX as u64) as usize);
+}
+
+/// Rolls back a failed native socketpair write.
+#[no_mangle]
+pub extern "C" fn tc_speed_prototype_wg_dequeue(bytes: u64) {
+    record_wg_pending(false, bytes.min(usize::MAX as u64) as usize);
+}
+
+/// Records a packet claimed by WireGuard but dropped before it reached the tunnel.
+#[no_mangle]
+pub extern "C" fn tc_speed_prototype_wg_drop() {
+    record_dropped_packet();
+}
+
+/// Called only after the WireGuard reader has stopped. Any datagrams still
+/// counted in the socketpair were discarded during teardown and become drops.
+#[no_mangle]
+pub extern "C" fn tc_speed_prototype_wg_reset_pending() -> u64 {
+    reset_wg_pending(global_telemetry())
 }
 
 #[no_mangle]
@@ -489,6 +537,37 @@ mod tests {
         update_peak(&peak, 2);
         update_peak(&peak, 9);
         assert_eq!(peak.load(Ordering::Relaxed), 9);
+    }
+
+    #[test]
+    fn wireguard_pending_tracks_enqueue_dequeue_and_shutdown_drops() {
+        let telemetry = SpeedTelemetry::default();
+        record_wg_pending_on(&telemetry, true, 120);
+        record_wg_pending_on(&telemetry, true, 80);
+        assert_eq!(telemetry.wg_pending_packets.load(Ordering::Relaxed), 2);
+        assert_eq!(telemetry.wg_pending_bytes.load(Ordering::Relaxed), 200);
+        assert_eq!(telemetry.wg_peak_pending_packets.load(Ordering::Relaxed), 2);
+        assert_eq!(telemetry.wg_peak_pending_bytes.load(Ordering::Relaxed), 200);
+
+        record_wg_pending_on(&telemetry, false, 120);
+        assert_eq!(telemetry.wg_pending_packets.load(Ordering::Relaxed), 1);
+        assert_eq!(telemetry.wg_pending_bytes.load(Ordering::Relaxed), 80);
+        assert_eq!(telemetry.wg_peak_pending_packets.load(Ordering::Relaxed), 2);
+        assert_eq!(telemetry.wg_peak_pending_bytes.load(Ordering::Relaxed), 200);
+
+        assert_eq!(reset_wg_pending(&telemetry), 1);
+        assert_eq!(telemetry.wg_pending_packets.load(Ordering::Relaxed), 0);
+        assert_eq!(telemetry.wg_pending_bytes.load(Ordering::Relaxed), 0);
+        assert_eq!(telemetry.wg_dropped_packets.load(Ordering::Relaxed), 1);
+        assert_eq!(telemetry.wg_peak_pending_packets.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn wireguard_pending_decrement_saturates_instead_of_underflowing() {
+        let telemetry = SpeedTelemetry::default();
+        record_wg_pending_on(&telemetry, false, 512);
+        assert_eq!(telemetry.wg_pending_packets.load(Ordering::Relaxed), 0);
+        assert_eq!(telemetry.wg_pending_bytes.load(Ordering::Relaxed), 0);
     }
 
     fn key4(protocol: u8, sport: u16, dport: u16) -> FlowKey {
