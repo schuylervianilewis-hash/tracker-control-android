@@ -156,6 +156,8 @@ int main(int argc, char **argv) {
         uint8_t received[HEADER_LEN + sizeof(packet)] = {0};
         ssize_t got = recv(sockets[1], received, sizeof(received), 0);
         CHECK(got == (ssize_t) sizeof(envelope), "socketpair preserves envelope datagram boundary");
+        if (sent == (ssize_t) sizeof(envelope) && got != (ssize_t) sizeof(envelope))
+            wg_dequeue(sizeof(packet));
 
         if (got == (ssize_t) sizeof(envelope)) {
             int32_t uid = -1;
@@ -176,7 +178,7 @@ int main(int argc, char **argv) {
                   "raw IP packet bytes remain unchanged");
             CHECK(decode(received, (size_t) got - 1, &uid, &packet_len) == -1,
                   "truncated envelope is rejected");
-            wg_dequeue(packet_len);
+            wg_dequeue(sizeof(packet));
             CHECK(snapshot(queued_snapshot, 13) == 0, "snapshot after socketpair handoff");
             CHECK(queued_snapshot[4] == 0 && queued_snapshot[5] == 0,
                   "WireGuard pending count clears after the reader hands off the packet");
