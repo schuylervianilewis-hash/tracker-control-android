@@ -55,7 +55,6 @@ static void update_speed_backpressure(const struct arguments *args,
         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, args->tun, ev_tun)) {
             int error = errno;
             ctx->speed_scheduler_errors++;
-            speed_limit_scheduler_error();
             log_android(ANDROID_LOG_ERROR,
                         "speed shaping: failed to pause TUN reads errno %d: %s",
                         error, strerror(error));
