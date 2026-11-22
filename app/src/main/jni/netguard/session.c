@@ -404,6 +404,7 @@ cleanup:
         pthread_mutex_unlock(&args->ctx->lock);
     } else {
         speed_pending_queue_clear(&args->ctx->speed_queue);
+        speed_queue_telemetry_publish(&args->ctx->speed_direct_telemetry, 0, 0);
         args->ctx->speed_backpressure = 0;
     }
     if (args->ctx->speed_timer_fd >= 0) {
