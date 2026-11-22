@@ -184,7 +184,7 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
             };
             for (String column : columns)
                 db.execSQL("ALTER TABLE " + TABLE_SAMPLES + " ADD COLUMN " +
-                        column + " INTEGER NOT NULL DEFAULT 0");
+                        column + " INTEGER NOT NULL DEFAULT -1");
         }
     }
 
