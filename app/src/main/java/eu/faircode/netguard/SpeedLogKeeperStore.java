@@ -67,6 +67,7 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         public final long droppedPackets;
         public final long schedulerErrors;
         public final boolean shapingEnabled;
+        public final boolean shapingKnown;
         public final boolean vpnActive;
 
         Sample(Cursor cursor) {
@@ -93,7 +94,8 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
             directSchedulerErrors = cursor.getLong(20);
             wireguardDroppedPackets = cursor.getLong(21);
             wireguardSchedulerErrors = cursor.getLong(22);
-            shapingEnabled = cursor.getInt(23) != 0;
+            shapingEnabled = cursor.getInt(23) == 1;
+            shapingKnown = cursor.getInt(23) >= 0;
             vpnActive = cursor.getInt(24) != 0;
         }
     }
@@ -202,8 +204,12 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         long directSchedulerDelta = delta(v[14], previousDirectSchedulerErrors);
         long wireguardDroppedDelta = delta(v[10], previousWireGuardDroppedPackets);
         long wireguardSchedulerDelta = delta(v[6], previousWireGuardSchedulerErrors);
-        long droppedDelta = directDroppedDelta + wireguardDroppedDelta;
-        long schedulerDelta = directSchedulerDelta + wireguardSchedulerDelta;
+        long droppedDelta = directDroppedDelta < 0 || wireguardDroppedDelta < 0
+                ? -1 : directDroppedDelta + wireguardDroppedDelta;
+        long schedulerDelta = directSchedulerDelta < 0 || wireguardSchedulerDelta < 0
+                ? -1 : directSchedulerDelta + wireguardSchedulerDelta;
+        long totalQueuePackets = v[4] < 0 || v[11] < 0 ? -1 : v[4] + v[11];
+        long totalQueueBytes = v[5] < 0 || v[12] < 0 ? -1 : v[5] + v[12];
         long directPeakPackets = v.length > 15 ? v[15] : -1;
         long directPeakBytes = v.length > 16 ? v[16] : -1;
         long wireguardPeakPackets = v.length > 17 ? v[17] : -1;
@@ -217,8 +223,8 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         row.put("download_limit", v[8]);
         row.put("delayed_bytes", delayedDelta);
         row.put("bypassed_bytes", bypassedDelta);
-        row.put("queue_packets", v[4] + v[11]);
-        row.put("queue_bytes", v[5] + v[12]);
+        row.put("queue_packets", totalQueuePackets);
+        row.put("queue_bytes", totalQueueBytes);
         row.put("dropped_packets", droppedDelta);
         row.put("scheduler_errors", schedulerDelta);
         row.put("direct_queue_packets", v[11]);
@@ -233,7 +239,7 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         row.put("direct_scheduler_errors", directSchedulerDelta);
         row.put("wireguard_dropped_packets", wireguardDroppedDelta);
         row.put("wireguard_scheduler_errors", wireguardSchedulerDelta);
-        row.put("shaping_enabled", v[9] != 0 ? 1 : 0);
+        row.put("shaping_enabled", v[9] < 0 ? -1 : (v[9] != 0 ? 1 : 0));
         row.put("vpn_active", vpnActive ? 1 : 0);
 
         SpeedLogKeeperStore store = getInstance(context);
@@ -266,6 +272,8 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
     }
 
     private static long rate(long current, long previous, long elapsedMs) {
+        if (current < 0)
+            return -1;
         if (previous < 0 || elapsedMs <= 0)
             return 0;
         long difference = current >= previous ? current - previous : current;
@@ -273,6 +281,8 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
     }
 
     private static long delta(long current, long previous) {
+        if (current < 0)
+            return -1;
         if (previous < 0)
             return 0;
         return current >= previous ? current - previous : current;
