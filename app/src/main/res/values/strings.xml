@@ -983,6 +983,7 @@ Sincerely,\n\n]]></string>
     <string name="speed_log_limits_unknown">Limit state unavailable until first sample</string>
     <string name="speed_log_queue_unknown">Queue state unavailable until first sample</string>
     <string name="speed_log_active">Speed shaping enabled</string>
+    <string name="speed_log_shaping_unknown">Speed shaping status unavailable</string>
     <string name="speed_log_vpn_unlimited">VPN active · no speed cap configured</string>
     <string name="speed_log_vpn_stopped">VPN stopped</string>
     <string name="speed_log_stale">Telemetry stale · VPN may have stopped unexpectedly</string>
