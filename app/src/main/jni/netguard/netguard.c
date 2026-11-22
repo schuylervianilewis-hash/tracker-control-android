@@ -566,6 +566,38 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1wireguard_1stop(JNIEnv *env, jobj
         log_android(ANDROID_LOG_ERROR, "wg outbound unlock failed during stop");
 }
 
+JNIEXPORT jlongArray JNICALL
+Java_eu_faircode_netguard_ServiceSinkhole_jni_1speed_1snapshot(
+        JNIEnv *env, jobject instance, jlong context) {
+    uint64_t rust[10] = {0};
+    speed_limit_snapshot(rust, 10);
+
+    struct context *ctx = (struct context *) context;
+    jlong values[14] = {
+        (jlong) rust[0], (jlong) rust[1], (jlong) rust[2], (jlong) rust[3],
+        (jlong) rust[4], (jlong) rust[5], (jlong) rust[6],
+        (jlong) rust[7], (jlong) rust[8], (jlong) rust[9],
+        0, 0, 0, 0
+    };
+    if (ctx != NULL) {
+        if (pthread_mutex_lock(&ctx->lock) == 0) {
+            values[10] = (jlong) ctx->speed_queue.packet_count;
+            values[11] = (jlong) ctx->speed_queue.queued_bytes;
+            values[12] = (jlong) ctx->speed_dropped_packets;
+            values[13] = (jlong) ctx->speed_scheduler_errors;
+            pthread_mutex_unlock(&ctx->lock);
+        } else {
+            values[13]++;
+        }
+    }
+
+    jlongArray result = (*env)->NewLongArray(env, 14);
+    if (result == NULL)
+        return NULL;
+    (*env)->SetLongArrayRegion(env, result, 0, 14, values);
+    return result;
+}
+
 JNIEXPORT void JNICALL
 Java_eu_faircode_netguard_ServiceSinkhole_jni_1done(
         JNIEnv *env, jobject instance, jlong context) {
