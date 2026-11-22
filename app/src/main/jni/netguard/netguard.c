@@ -163,6 +163,9 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1init(
 #else
     speed_limit_configure(0, 0, NULL, 0);
 #endif
+    // Reset only the WireGuard queue high-water marks here, once per native
+    // VPN context. Reconfiguring/disabling the limiter later must not erase them.
+    speed_limit_reset_queue_peaks();
     // Owner state belongs to this process-wide packet-path lifecycle. Keep it
     // across ordinary WireGuard stop/start and route reloads, but do not carry
     // it into a newly initialised native context.
