@@ -10,3 +10,9 @@ ssize_t speed_write_tun_packet(const struct arguments *args,
     (void) dns_port_53;
     return write(args->tun, packet, length);
 }
+
+/* ip_header_test links ip.c without the production policy bridge. */
+void speed_limit_record(int direction, size_t bytes) {
+    (void) direction;
+    (void) bytes;
+}
