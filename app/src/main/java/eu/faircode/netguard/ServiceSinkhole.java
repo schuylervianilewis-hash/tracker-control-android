@@ -4389,9 +4389,6 @@ public class ServiceSinkhole extends VpnService {
             if (initialized) {
                 if (statsHandler != null)
                     statsHandler.removeCallbacks(speedTelemetrySampler);
-                recordSpeedSnapshot(false);
-                SpeedLogKeeperStore.recordEvent(ServiceSinkhole.this,
-                        SpeedLogKeeperStore.EVENT_VPN_STOPPED);
                 commandLooper.quit();
                 logLooper.quit();
                 statsLooper.quit();
@@ -4461,6 +4458,14 @@ public class ServiceSinkhole extends VpnService {
                 }
             } catch (Throwable ex) {
                 Log.e(TAG, ex.toString() + "\n" + Log.getStackTraceString(ex));
+            }
+
+            if (initialized) {
+                // Sample after native teardown so queued drops and the final
+                // inactive state are reflected in the last persisted record.
+                recordSpeedSnapshot(false);
+                SpeedLogKeeperStore.recordEvent(ServiceSinkhole.this,
+                        SpeedLogKeeperStore.EVENT_VPN_STOPPED);
             }
 
             // Final teardown of the egress side, mirroring CommandHandler.stop().
