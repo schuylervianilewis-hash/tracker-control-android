@@ -115,6 +115,10 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
         TextView download = findViewById(R.id.speed_download);
         TextView limits = findViewById(R.id.speed_limits);
         TextView queue = findViewById(R.id.speed_queue);
+        TextView directQueue = findViewById(R.id.speed_log_direct_queue);
+        TextView wireguardQueue = findViewById(R.id.speed_log_wireguard_queue);
+        TextView pathDrops = findViewById(R.id.speed_log_path_drops);
+        TextView pathErrors = findViewById(R.id.speed_log_path_errors);
         TextView delayed = findViewById(R.id.speed_delayed);
         TextView bypassed = findViewById(R.id.speed_bypassed);
         TextView drops = findViewById(R.id.speed_drops);
@@ -129,6 +133,10 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
             download.setText(getString(R.string.speed_log_download, "—"));
             limits.setText(R.string.speed_log_limits_unknown);
             queue.setText(R.string.speed_log_queue_unknown);
+            directQueue.setText(R.string.speed_log_path_queue_unknown);
+            wireguardQueue.setText(R.string.speed_log_path_queue_unknown);
+            pathDrops.setText(R.string.speed_log_path_drops_unknown);
+            pathErrors.setText(R.string.speed_log_path_errors_unknown);
             delayed.setText(getString(R.string.speed_log_delayed, "—"));
             bypassed.setText(getString(R.string.speed_log_bypassed, "—"));
             drops.setText(getString(R.string.speed_log_drops, "—"));
@@ -150,6 +158,16 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
                     formatLimit(latest.uploadLimit), formatLimit(latest.downloadLimit)));
             queue.setText(getString(R.string.speed_log_queue,
                     latest.queuePackets, formatBytes(latest.queueBytes)));
+            directQueue.setText(getString(R.string.speed_log_direct_queue,
+                    latest.directQueuePackets, formatBytes(latest.directQueueBytes),
+                    latest.directQueuePeakPackets, formatBytes(latest.directQueuePeakBytes)));
+            wireguardQueue.setText(getString(R.string.speed_log_wireguard_queue,
+                    latest.wireguardQueuePackets, formatBytes(latest.wireguardQueueBytes),
+                    latest.wireguardQueuePeakPackets, formatBytes(latest.wireguardQueuePeakBytes)));
+            pathDrops.setText(getString(R.string.speed_log_path_drops,
+                    latest.directDroppedPackets, latest.wireguardDroppedPackets));
+            pathErrors.setText(getString(R.string.speed_log_path_errors,
+                    latest.directSchedulerErrors, latest.wireguardSchedulerErrors));
             delayed.setText(getString(R.string.speed_log_delayed, formatBytes(latest.delayedBytes)));
             bypassed.setText(getString(R.string.speed_log_bypassed, formatBytes(latest.bypassedBytes)));
             drops.setText(getString(R.string.speed_log_drops, Long.toString(latest.droppedPackets)));
@@ -186,8 +204,11 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
                     .append(" | Events: ").append(events.size()).append("\n\n")
                     .append("SAMPLES (newest first)\n")
                     .append("Timestamp | Upload B/s | Download B/s | Upload limit B/s | Download limit B/s")
-                    .append(" | Delayed bytes | Bypassed bytes | Queue packets | Queue bytes")
-                    .append(" | Dropped packets | Scheduler errors | Shaping enabled | VPN active\n");
+                    .append(" | Delayed bytes | Bypassed bytes | Total queue packets | Total queue bytes")
+                    .append(" | Direct packets | Direct bytes | Direct peak packets | Direct peak bytes")
+                    .append(" | WireGuard packets | WireGuard bytes | WireGuard peak packets | WireGuard peak bytes")
+                    .append(" | Direct drops | Direct scheduler errors | WireGuard drops | WireGuard scheduler errors")
+                    .append(" | Total drops | Total scheduler errors | Shaping enabled | VPN active\n");
             for (SpeedLogKeeperStore.Sample sample : samples) {
                 out.append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                                 .format(new Date(sample.timestamp))).append(" | ")
@@ -199,6 +220,18 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
                         .append(sample.bypassedBytes).append(" | ")
                         .append(sample.queuePackets).append(" | ")
                         .append(sample.queueBytes).append(" | ")
+                        .append(sample.directQueuePackets).append(" | ")
+                        .append(sample.directQueueBytes).append(" | ")
+                        .append(sample.directQueuePeakPackets).append(" | ")
+                        .append(sample.directQueuePeakBytes).append(" | ")
+                        .append(sample.wireguardQueuePackets).append(" | ")
+                        .append(sample.wireguardQueueBytes).append(" | ")
+                        .append(sample.wireguardQueuePeakPackets).append(" | ")
+                        .append(sample.wireguardQueuePeakBytes).append(" | ")
+                        .append(sample.directDroppedPackets).append(" | ")
+                        .append(sample.directSchedulerErrors).append(" | ")
+                        .append(sample.wireguardDroppedPackets).append(" | ")
+                        .append(sample.wireguardSchedulerErrors).append(" | ")
                         .append(sample.droppedPackets).append(" | ")
                         .append(sample.schedulerErrors).append(" | ")
                         .append(sample.shapingEnabled).append(" | ")
@@ -239,6 +272,8 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
                     .append("  ↑ ").append(formatRate(sample.uploadBytesPerSecond))
                     .append("  ↓ ").append(formatRate(sample.downloadBytesPerSecond))
                     .append("  Q ").append(sample.queuePackets)
+                    .append("  Direct ").append(sample.directQueuePackets)
+                    .append("  WireGuard ").append(sample.wireguardQueuePackets)
                     .append('\n');
         }
         return out.length() == 0 ? getString(R.string.speed_log_no_history) : out.toString().trim();
