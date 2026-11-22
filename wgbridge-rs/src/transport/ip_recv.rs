@@ -25,6 +25,32 @@ const MAX_BATCH: usize = 32;
 const FLOW_OWNER_CAPACITY: usize = 8_192;
 const FLOW_OWNER_TTL_NS: u64 = 300_000_000_000;
 
+// Keep each outbound packet counted after it leaves the socketpair and
+// while it sits in this batch. The guard is released only when gotatun pulls
+// that packet from the returned iterator. If gotatun abandons the iterator,
+// remaining packets are recorded as drops.
+struct PendingPacketIter {
+    packets: std::vec::IntoIter<(Packet<Ip>, PendingGuard)>,
+}
+
+impl Iterator for PendingPacketIter {
+    type Item = Packet<Ip>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (packet, pending) = self.packets.next()?;
+        drop(pending);
+        Some(packet)
+    }
+}
+
+impl Drop for PendingPacketIter {
+    fn drop(&mut self) {
+        for _ in 0..self.packets.len() {
+            record_dropped_packet();
+        }
+    }
+}
+
 pub struct SocketpairRecv {
     afd: AsyncFd<OwnedFd>,
     mtu: MtuWatcher,
@@ -94,7 +120,7 @@ impl IpRecv for SocketpairRecv {
             let mut guard = self.afd.readable().await?;
             let fd = self.afd.get_ref().as_raw_fd();
 
-            let mut packets: Vec<Packet<Ip>> = Vec::new();
+            let mut packets: Vec<(Packet<Ip>, PendingGuard)> = Vec::new();
             loop {
                 if packets.len() >= MAX_BATCH {
                     break;
@@ -141,7 +167,7 @@ impl IpRecv for SocketpairRecv {
                 // This packet was counted by the native socketpair writer. Keep
                 // it pending through pacing and validation until it is handed
                 // to gotatun (or discarded on one of the error paths below).
-                let _pending = PendingGuard::from_enqueued(packet_len);
+                let pending = PendingGuard::from_enqueued(packet_len);
                 let flow = flow_key_from_ip_packet(packet_bytes);
                 let dns_port_53 = flow.map(|key| key.is_dns_port_53()).unwrap_or(false);
 
@@ -191,11 +217,11 @@ impl IpRecv for SocketpairRecv {
                 } else {
                     record_transmitted(crate::speed_shaping_prototype::Direction::Upload, packet_len);
                 }
-                packets.push(ip);
+                packets.push((ip, pending));
             }
 
             if !packets.is_empty() {
-                return Ok(packets.into_iter());
+                return Ok(PendingPacketIter { packets: packets.into_iter() });
             }
             // Nothing (valid) read; wait for the next readiness event.
         }
