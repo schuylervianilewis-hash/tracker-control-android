@@ -165,6 +165,11 @@ pub extern "C" fn tc_speed_prototype_record(direction: i32, bytes: u64) -> i32 {
 }
 
 #[no_mangle]
+pub extern "C" fn tc_speed_prototype_bypass(bytes: u64) {
+    global_telemetry().bypassed_bytes.fetch_add(bytes, Ordering::Relaxed);
+}
+
+#[no_mangle]
 pub extern "C" fn tc_speed_prototype_pending(add: i32, bytes: u64) {
     let telemetry = global_telemetry();
     if add != 0 {
