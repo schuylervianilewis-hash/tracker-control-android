@@ -993,7 +993,7 @@ Sincerely,\n\n]]></string>
     <string name="speed_log_limits">Configured limits · Upload: %1$s · Download: %2$s</string>
     <string name="speed_log_no_limits">No limit configured</string>
     <string name="speed_log_unlimited">Unlimited</string>
-    <string name="speed_log_queue">Pending queue: %1$d packets · %2$s</string>
+    <string name="speed_log_queue">Pending queue: %1$s packets · %2$s</string>
     <string name="speed_log_queue_empty">Pending queue: empty</string>
     <string name="speed_log_delayed">Bytes delayed in last sample: %1$s</string>
     <string name="speed_log_bypassed">Bytes bypassed (DNS/exempt/fail-open) in last sample: %1$s</string>
