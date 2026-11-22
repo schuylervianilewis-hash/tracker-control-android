@@ -152,7 +152,9 @@ android {
             buildConfigField "String", "GITHUB_LATEST_API", "\"\""
         }
         github {
-            buildConfigField "String", "GITHUB_LATEST_API", "\"https://api.github.com/repos/TrackerControl/tracker-control-android/releases\""
+            // This is a Vianshield/Firewall fork, not the upstream TrackerControl app.
+            // Do not advertise upstream TrackerControl releases as updates for this build.
+            buildConfigField "String", "GITHUB_LATEST_API", "\"\""
         }
     }
 
