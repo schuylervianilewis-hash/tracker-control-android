@@ -132,6 +132,23 @@ pub fn record_wg_pending(add: bool, bytes: usize) {
     }
 }
 
+pub struct PendingGuard {
+    bytes: usize,
+}
+
+impl PendingGuard {
+    pub fn new(bytes: usize) -> Self {
+        record_wg_pending(true, bytes);
+        Self { bytes }
+    }
+}
+
+impl Drop for PendingGuard {
+    fn drop(&mut self) {
+        record_wg_pending(false, self.bytes);
+    }
+}
+
 pub fn record_scheduler_error() {
     global_telemetry().scheduler_errors.fetch_add(1, Ordering::Relaxed);
 }
