@@ -159,11 +159,16 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         row.put("vpn_active", vpnActive ? 1 : 0);
 
         SpeedLogKeeperStore store = getInstance(context);
-        SQLiteDatabase db = store.getWritableDatabase();
-        db.insert(TABLE_SAMPLES, null, row);
-        db.delete(TABLE_SAMPLES, "timestamp_ms < ?", new String[]{Long.toString(now - RETENTION_MS)});
-        db.execSQL("DELETE FROM " + TABLE_SAMPLES + " WHERE id NOT IN " +
-                "(SELECT id FROM " + TABLE_SAMPLES + " ORDER BY id DESC LIMIT " + MAX_SAMPLES + ")");
+        try {
+            SQLiteDatabase db = store.getWritableDatabase();
+            if (db.insert(TABLE_SAMPLES, null, row) < 0)
+                return;
+            db.delete(TABLE_SAMPLES, "timestamp_ms < ?", new String[]{Long.toString(now - RETENTION_MS)});
+            db.execSQL("DELETE FROM " + TABLE_SAMPLES + " WHERE id NOT IN " +
+                    "(SELECT id FROM " + TABLE_SAMPLES + " ORDER BY id DESC LIMIT " + MAX_SAMPLES + ")");
+        } catch (RuntimeException ignored) {
+            return;
+        }
 
         previousSampleAt = now;
         previousUploadBytes = v[0];
@@ -190,21 +195,25 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
     public static void recordEvent(Context context, int eventCode) {
         if (eventCode < EVENT_VPN_STARTED || eventCode > EVENT_WIREGUARD_ERROR)
             return;
-        SpeedLogKeeperStore store = getInstance(context);
-        SQLiteDatabase db = store.getWritableDatabase();
-        long now = System.currentTimeMillis();
-        try (Cursor cursor = db.rawQuery("SELECT event_code, timestamp_ms FROM " +
-                TABLE_EVENTS + " ORDER BY id DESC LIMIT 1", null)) {
-            if (cursor.moveToFirst() && cursor.getInt(0) == eventCode &&
-                    now - cursor.getLong(1) < 5_000L)
-                return;
+        try {
+            SpeedLogKeeperStore store = getInstance(context);
+            SQLiteDatabase db = store.getWritableDatabase();
+            long now = System.currentTimeMillis();
+            try (Cursor cursor = db.rawQuery("SELECT event_code, timestamp_ms FROM " +
+                    TABLE_EVENTS + " ORDER BY id DESC LIMIT 1", null)) {
+                if (cursor.moveToFirst() && cursor.getInt(0) == eventCode &&
+                        now - cursor.getLong(1) < 5_000L)
+                    return;
+            }
+            ContentValues row = new ContentValues();
+            row.put("timestamp_ms", now);
+            row.put("event_code", eventCode);
+            if (db.insert(TABLE_EVENTS, null, row) >= 0)
+                db.execSQL("DELETE FROM " + TABLE_EVENTS + " WHERE id NOT IN " +
+                        "(SELECT id FROM " + TABLE_EVENTS + " ORDER BY id DESC LIMIT " + MAX_EVENTS + ")");
+        } catch (RuntimeException ignored) {
+            // Logging failure must not change VPN or WireGuard lifecycle behavior.
         }
-        ContentValues row = new ContentValues();
-        row.put("timestamp_ms", now);
-        row.put("event_code", eventCode);
-        db.insert(TABLE_EVENTS, null, row);
-        db.execSQL("DELETE FROM " + TABLE_EVENTS + " WHERE id NOT IN " +
-                "(SELECT id FROM " + TABLE_EVENTS + " ORDER BY id DESC LIMIT " + MAX_EVENTS + ")");
     }
 
     public List<Sample> getRecentSamples(int limit) {
@@ -217,6 +226,8 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
                         " ORDER BY id DESC LIMIT ?", new String[]{Integer.toString(Math.max(1, limit))})) {
             while (cursor.moveToNext())
                 result.add(new Sample(cursor));
+        } catch (RuntimeException ignored) {
+            result.clear();
         }
         return result;
     }
@@ -228,6 +239,8 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
                         " ORDER BY id DESC LIMIT ?", new String[]{Integer.toString(Math.max(1, limit))})) {
             while (cursor.moveToNext())
                 result.add(new Event(cursor));
+        } catch (RuntimeException ignored) {
+            result.clear();
         }
         return result;
     }
