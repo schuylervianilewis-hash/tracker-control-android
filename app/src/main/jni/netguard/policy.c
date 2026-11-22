@@ -46,7 +46,6 @@ static int64_t (*p_speed_reserve)(int32_t direction, int32_t uid,
 static int (*p_speed_record)(int32_t direction, uint64_t bytes) = NULL;
 static void (*p_speed_bypass)(uint64_t bytes) = NULL;
 static void (*p_speed_delayed)(uint64_t bytes) = NULL;
-static void (*p_speed_scheduler_error)(void) = NULL;
 static int (*p_speed_snapshot)(uint64_t *out, size_t out_len) = NULL;
 
 // Facts the packet path reads per packet. Mirrored here rather than queried
@@ -75,11 +74,10 @@ static void policy_load() {
     p_speed_record = dlsym(handle, "tc_speed_prototype_record");
     p_speed_bypass = dlsym(handle, "tc_speed_prototype_bypass");
     p_speed_delayed = dlsym(handle, "tc_speed_prototype_delayed");
-    p_speed_scheduler_error = dlsym(handle, "tc_speed_prototype_scheduler_error");
     p_speed_snapshot = dlsym(handle, "tc_speed_prototype_snapshot");
     speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL &&
                p_speed_record != NULL && p_speed_bypass != NULL && p_speed_delayed != NULL &&
-               p_speed_scheduler_error != NULL && p_speed_snapshot != NULL;
+               p_speed_snapshot != NULL;
     if (!speed_ok)
         log_android(ANDROID_LOG_WARN, "speed shaping: shared limiter symbols unavailable");
 
@@ -145,12 +143,6 @@ void speed_limit_record_bypass(size_t bytes) {
         p_speed_bypass((uint64_t) bytes);
 }
 
-void speed_limit_scheduler_error(void) {
-    policy_ensure();
-    if (speed_ok)
-        p_speed_scheduler_error();
-}
-
 int speed_limit_snapshot(uint64_t *out, size_t out_len) {
     policy_ensure();
     if (!speed_ok || out == NULL || out_len < 11)
@@ -180,7 +172,6 @@ int speed_pending_arm(struct context *ctx) {
         size_t dropped = ctx->speed_queue.packet_count;
         ctx->speed_dropped_packets += dropped;
         ctx->speed_scheduler_errors++;
-        speed_limit_scheduler_error();
         speed_pending_queue_clear(&ctx->speed_queue);
         log_android(ANDROID_LOG_ERROR,
                     "speed shaping: timer arm failed errno %d: %s; cleared %zu queued packets",
@@ -320,7 +311,6 @@ void speed_pending_drain(const struct arguments *args, int epoll_fd) {
         ssize_t n = read(args->ctx->speed_timer_fd, &expirations, sizeof(expirations));
         if (n < 0 && errno != EAGAIN && errno != EINTR) {
             args->ctx->speed_scheduler_errors++;
-            speed_limit_scheduler_error();
             log_android(ANDROID_LOG_WARN, "speed shaping: timer read failed: %s",
                         strerror(errno));
         }
