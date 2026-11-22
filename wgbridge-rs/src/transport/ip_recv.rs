@@ -38,16 +38,8 @@ impl Iterator for PendingPacketIter {
 
     fn next(&mut self) -> Option<Self::Item> {
         let (packet, pending) = self.packets.next()?;
-        drop(pending);
+        pending.complete();
         Some(packet)
-    }
-}
-
-impl Drop for PendingPacketIter {
-    fn drop(&mut self) {
-        for _ in 0..self.packets.len() {
-            record_dropped_packet();
-        }
     }
 }
 
@@ -182,17 +174,13 @@ impl IpRecv for SocketpairRecv {
                 // Reuse gotatun's packet pool after removing the C/Rust envelope.
                 let mut packet = pool.get();
                 if packet_len > packet.buf_mut().len() {
-                    record_dropped_packet();
                     continue;
                 }
                 packet.buf_mut()[..packet_len].copy_from_slice(packet_bytes);
                 packet.truncate(packet_len);
                 let ip = match packet.try_into_ip() {
                     Ok(ip) => ip,
-                    Err(_) => {
-                        record_dropped_packet();
-                        continue;
-                    }
+                    Err(_) => continue,
                 };
 
                 // The reservation is shared with the native Direct path through
