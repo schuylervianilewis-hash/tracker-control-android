@@ -976,6 +976,8 @@ Sincerely,\n\n]]></string>
 
 
     <string name="speed_log_title">Speed Log Keeper</string>
+    <string name="speed_log_copy_all">Copy full speed log</string>
+    <string name="speed_log_copied">Full speed log copied to clipboard</string>
     <string name="speed_log_waiting">Waiting for speed-shaping samples</string>
     <string name="speed_log_no_samples">No samples recorded yet</string>
     <string name="speed_log_limits_unknown">Limit state unavailable until first sample</string>
