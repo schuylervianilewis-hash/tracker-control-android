@@ -122,12 +122,12 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
             status.setText(R.string.speed_log_waiting);
             upload.setText(getString(R.string.speed_log_upload, "—"));
             download.setText(getString(R.string.speed_log_download, "—"));
-            limits.setText(R.string.speed_log_no_limits);
-            queue.setText(R.string.speed_log_queue_empty);
-            delayed.setText(getString(R.string.speed_log_delayed, "0 B"));
-            bypassed.setText(getString(R.string.speed_log_bypassed, "0 B"));
-            drops.setText(getString(R.string.speed_log_drops, "0"));
-            errors.setText(getString(R.string.speed_log_errors, "0"));
+            limits.setText(R.string.speed_log_limits_unknown);
+            queue.setText(R.string.speed_log_queue_unknown);
+            delayed.setText(getString(R.string.speed_log_delayed, "—"));
+            bypassed.setText(getString(R.string.speed_log_bypassed, "—"));
+            drops.setText(getString(R.string.speed_log_drops, "—"));
+            errors.setText(getString(R.string.speed_log_errors, "—"));
             updated.setText(R.string.speed_log_no_samples);
             history.setText(R.string.speed_log_no_history);
         } else {
