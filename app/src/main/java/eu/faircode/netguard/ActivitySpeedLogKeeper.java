@@ -17,9 +17,12 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ActivitySpeedLogKeeper extends AppCompatActivity {
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private final Runnable refresh = new Runnable() {
         @Override
         public void run() {
@@ -65,10 +68,19 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
     }
 
     private void render() {
-        SpeedLogKeeperStore store = SpeedLogKeeperStore.getInstance(this);
-        List<SpeedLogKeeperStore.Sample> samples = store.getRecentSamples(30);
-        List<SpeedLogKeeperStore.Event> events = store.getRecentEvents(12);
+        ioExecutor.execute(() -> {
+            SpeedLogKeeperStore store = SpeedLogKeeperStore.getInstance(getApplicationContext());
+            List<SpeedLogKeeperStore.Sample> samples = store.getRecentSamples(30);
+            List<SpeedLogKeeperStore.Event> events = store.getRecentEvents(12);
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed())
+                    renderData(samples, events);
+            });
+        });
+    }
 
+    private void renderData(List<SpeedLogKeeperStore.Sample> samples,
+                            List<SpeedLogKeeperStore.Event> events) {
         TextView status = findViewById(R.id.speed_status);
         TextView upload = findViewById(R.id.speed_upload);
         TextView download = findViewById(R.id.speed_download);
@@ -114,6 +126,13 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
             history.setText(formatHistory(samples));
         }
         eventView.setText(formatEvents(events));
+    }
+
+    @Override
+    protected void onDestroy() {
+        handler.removeCallbacks(refresh);
+        ioExecutor.shutdownNow();
+        super.onDestroy();
     }
 
     private String formatHistory(List<SpeedLogKeeperStore.Sample> samples) {
