@@ -170,6 +170,7 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1init(
 
     struct context *ctx = ng_calloc(1, sizeof(struct context), "init");
     ctx->sdk = sdk;
+    speed_queue_telemetry_init(&ctx->speed_direct_telemetry);
     ctx->speed_timer_fd = -1;
     if (speed_pending_queue_init(&ctx->speed_queue, 512, 2 * 1024 * 1024) != 0)
         log_android(ANDROID_LOG_ERROR, "speed shaping: queue initialization failed");
@@ -569,32 +570,32 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1wireguard_1stop(JNIEnv *env, jobj
 JNIEXPORT jlongArray JNICALL
 Java_eu_faircode_netguard_ServiceSinkhole_jni_1speed_1snapshot(
         JNIEnv *env, jobject instance, jlong context) {
-    uint64_t rust[11] = {0};
-    speed_limit_snapshot(rust, 11);
+    uint64_t rust[13] = {0};
+    speed_limit_snapshot(rust, 13);
 
     struct context *ctx = (struct context *) context;
-    jlong values[15] = {
+    jlong values[19] = {
         (jlong) rust[0], (jlong) rust[1], (jlong) rust[2], (jlong) rust[3],
         (jlong) rust[4], (jlong) rust[5], (jlong) rust[6],
         (jlong) rust[7], (jlong) rust[8], (jlong) rust[9], (jlong) rust[10],
-        0, 0, 0, 0
+        0, 0, 0, 0, 0, 0, (jlong) rust[11], (jlong) rust[12]
     };
     if (ctx != NULL) {
-        if (pthread_mutex_lock(&ctx->lock) == 0) {
-            values[11] = (jlong) ctx->speed_queue.packet_count;
-            values[12] = (jlong) ctx->speed_queue.queued_bytes;
-            values[13] = (jlong) ctx->speed_dropped_packets;
-            values[14] = (jlong) ctx->speed_scheduler_errors;
-            pthread_mutex_unlock(&ctx->lock);
-        } else {
-            values[14]++;
-        }
+        struct speed_queue_telemetry *direct = &ctx->speed_direct_telemetry;
+        // Queue mutations stay on the epoll thread. The sampler reads atomics,
+        // not the live queue; ctx->lock does not guard queue operations.
+        values[11] = (jlong) atomic_load_explicit(&direct->packets, memory_order_relaxed);
+        values[12] = (jlong) atomic_load_explicit(&direct->bytes, memory_order_relaxed);
+        values[13] = (jlong) atomic_load_explicit(&direct->dropped_packets, memory_order_relaxed);
+        values[14] = (jlong) atomic_load_explicit(&direct->scheduler_errors, memory_order_relaxed);
+        values[15] = (jlong) atomic_load_explicit(&direct->peak_packets, memory_order_relaxed);
+        values[16] = (jlong) atomic_load_explicit(&direct->peak_bytes, memory_order_relaxed);
     }
 
-    jlongArray result = (*env)->NewLongArray(env, 15);
+    jlongArray result = (*env)->NewLongArray(env, 19);
     if (result == NULL)
         return NULL;
-    (*env)->SetLongArrayRegion(env, result, 0, 15, values);
+    (*env)->SetLongArrayRegion(env, result, 0, 19, values);
     return result;
 }
 
