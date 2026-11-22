@@ -193,6 +193,17 @@ pub extern "C" fn tc_speed_prototype_bypass(bytes: u64) {
     global_telemetry().bypassed_bytes.fetch_add(bytes, Ordering::Relaxed);
 }
 
+/// Reset WireGuard queue high-water marks at the start of a new native VPN context.
+/// Cumulative drop/error counters and current pending values are not reset.
+#[no_mangle]
+pub extern "C" fn tc_speed_prototype_reset_queue_peaks() {
+    let telemetry = global_telemetry();
+    telemetry.wg_peak_pending_packets.store(
+        telemetry.wg_pending_packets.load(Ordering::Relaxed), Ordering::Relaxed);
+    telemetry.wg_peak_pending_bytes.store(
+        telemetry.wg_pending_bytes.load(Ordering::Relaxed), Ordering::Relaxed);
+}
+
 /// Snapshot contains aggregate counters and configured rates only. It deliberately
 /// has no fields for UID, app, protocol, address, port, DNS, or flow identity.
 #[no_mangle]
@@ -430,13 +441,6 @@ pub unsafe extern "C" fn tc_speed_prototype_configure(
         download_bytes_per_second,
         exempt,
     );
-    // Called when the native VPN context is initialised. Reset queue peaks for
-    // the new session while leaving cumulative counters monotonic for sampling.
-    let telemetry = global_telemetry();
-    telemetry.wg_peak_pending_packets.store(
-        telemetry.wg_pending_packets.load(Ordering::Relaxed), Ordering::Relaxed);
-    telemetry.wg_peak_pending_bytes.store(
-        telemetry.wg_pending_bytes.load(Ordering::Relaxed), Ordering::Relaxed);
     0
 }
 
