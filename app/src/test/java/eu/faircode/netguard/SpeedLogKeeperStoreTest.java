@@ -44,14 +44,17 @@ public class SpeedLogKeeperStoreTest {
                 "scheduler_errors INTEGER NOT NULL," +
                 "shaping_enabled INTEGER NOT NULL," +
                 "vpn_active INTEGER NOT NULL)");
+        legacy.execSQL("CREATE INDEX speed_samples_time ON speed_samples(timestamp_ms)");
         legacy.execSQL("CREATE TABLE speed_events (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "timestamp_ms INTEGER NOT NULL," +
                 "event_code INTEGER NOT NULL)");
+        long legacyTimestamp = System.currentTimeMillis() - 1_000L;
         legacy.execSQL("INSERT INTO speed_samples (timestamp_ms, upload_bytes_per_second, " +
                 "download_bytes_per_second, upload_limit, download_limit, delayed_bytes, " +
                 "bypassed_bytes, queue_packets, queue_bytes, dropped_packets, scheduler_errors, " +
-                "shaping_enabled, vpn_active) VALUES (1000, 10, 20, 1000, 2000, 0, 0, 3, 300, 0, 0, 1, 1)");
+                "shaping_enabled, vpn_active) VALUES (" + legacyTimestamp +
+                ", 10, 20, 1000, 2000, 0, 0, 3, 300, 0, 0, 1, 1)");
         legacy.setVersion(1);
         legacy.close();
 
