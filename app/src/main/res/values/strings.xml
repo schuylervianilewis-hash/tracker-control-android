@@ -989,7 +989,7 @@ Sincerely,\n\n]]></string>
     <string name="speed_log_queue">Pending queue: %1$d packets · %2$s</string>
     <string name="speed_log_queue_empty">Pending queue: empty</string>
     <string name="speed_log_delayed">Bytes delayed in last sample: %1$s</string>
-    <string name="speed_log_bypassed">Bytes bypassed in last sample: %1$s</string>
+    <string name="speed_log_bypassed">Bytes bypassed (DNS/exempt/fail-open) in last sample: %1$s</string>
     <string name="speed_log_drops">Shaper packet drops in last sample: %1$s</string>
     <string name="speed_log_errors">Scheduler errors in last sample: %1$s</string>
     <string name="speed_log_updated">Last sample: %1$s</string>
@@ -997,6 +997,7 @@ Sincerely,\n\n]]></string>
     <string name="speed_log_no_history">No throughput history yet</string>
     <string name="speed_log_events_title">VPN and WireGuard events</string>
     <string name="speed_log_no_events">No VPN or WireGuard events recorded</string>
+    <string name="speed_log_settings_summary">Aggregate upload/download rates, queue depth and shaper events only</string>
     <string name="speed_log_privacy">This log stores aggregate speed-shaping measurements only. It does not store app identities, UIDs, domains, DNS queries, destination addresses or ports, or per-connection histories. Samples are retained for up to 24 hours (with a hard storage limit).</string>
     <string name="speed_event_vpn_started">VPN service started</string>
     <string name="speed_event_vpn_stopped">VPN service stopped</string>
