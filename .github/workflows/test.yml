@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master, main, 'feature/speed-shaping-log-keeper' ]
     tags: [ '[0-9]*' ]
   pull_request:
     branches: [ master, main, 'codex/**' ]
