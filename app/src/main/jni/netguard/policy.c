@@ -305,6 +305,7 @@ void speed_pending_dispatch_upload(const struct arguments *args,
         redirect.rport = (uint16_t) metadata->redirect_port;
         redirect_ptr = &redirect;
     }
+    speed_limit_record_delayed(length);
     dispatch_direct_packet(args, packet, length, (uint8_t) metadata->protocol,
                            metadata->payload_offset, metadata->uid,
                            redirect_ptr, epoll_fd);
@@ -342,6 +343,7 @@ void speed_pending_drain(const struct arguments *args, int epoll_fd) {
             if (written == (ssize_t) length) {
                 if (pcap_file != NULL)
                     write_pcap_rec(packet, length);
+                speed_limit_record_delayed(length);
                 speed_limit_record(1, length);
             } else {
                 args->ctx->speed_dropped_packets++;
