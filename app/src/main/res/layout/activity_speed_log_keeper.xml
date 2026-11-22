@@ -91,6 +91,20 @@
                 android:textSize="14sp" />
 
             <TextView
+                android:id="@+id/speed_log_direct_queue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/speed_log_wireguard_queue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="13sp" />
+
+            <TextView
                 android:id="@+id/speed_delayed"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -117,6 +131,20 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/speed_log_path_drops"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/speed_log_path_errors"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="13sp" />
 
             <TextView
                 android:layout_width="match_parent"
