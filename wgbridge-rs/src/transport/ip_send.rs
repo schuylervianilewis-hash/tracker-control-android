@@ -14,7 +14,7 @@ use crate::callbacks::DnsSink;
 use crate::dns::DnsInspector;
 use crate::speed_shaping_integration::flow_key_from_ip_packet;
 use crate::speed_shaping_prototype::{
-    monotonic_now_ns, record_transmitted, record_scheduler_error, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
+    monotonic_now_ns, record_transmitted, record_scheduler_error, record_dropped_packet, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
 };
 
 pub struct TunFdSend {
@@ -128,6 +128,7 @@ impl IpSend for TunFdSend {
             n == data.len() as isize,
         );
         if n != data.len() as isize {
+            record_dropped_packet();
             // TUN write failures are transient (e.g. ENOBUFS under load) or
             // mean the VPN is being torn down, in which case Java stops us.
             // Never bubble them up: gotatun treats IpSend errors as fatal.
