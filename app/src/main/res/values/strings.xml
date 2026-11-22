@@ -994,7 +994,7 @@ Sincerely,\n\n]]></string>
     <string name="speed_log_queue_empty">Pending queue: empty</string>
     <string name="speed_log_delayed">Bytes delayed in last sample: %1$s</string>
     <string name="speed_log_bypassed">Bytes bypassed (DNS/exempt/fail-open) in last sample: %1$s</string>
-    <string name="speed_log_drops">Shaper packet drops in last sample: %1$s</string>
+    <string name="speed_log_drops">Shaper/TUN packet drops in last sample: %1$s</string>
     <string name="speed_log_errors">Scheduler errors in last sample: %1$s</string>
     <string name="speed_log_updated">Last sample: %1$s</string>
     <string name="speed_log_history_title">Recent throughput samples</string>
