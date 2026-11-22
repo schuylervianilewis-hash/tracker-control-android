@@ -17,7 +17,7 @@ import java.util.List;
  */
 public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
     private static final String DB_NAME = "speed-log-keeper.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
     private static final String TABLE_SAMPLES = "speed_samples";
     private static final String TABLE_EVENTS = "speed_events";
     private static final long RETENTION_MS = 24L * 60L * 60L * 1000L;
@@ -37,8 +37,10 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
     private static long previousDownloadBytes = -1;
     private static long previousDelayedBytes = -1;
     private static long previousBypassedBytes = -1;
-    private static long previousDroppedPackets = -1;
-    private static long previousSchedulerErrors = -1;
+    private static long previousDirectDroppedPackets = -1;
+    private static long previousDirectSchedulerErrors = -1;
+    private static long previousWireGuardDroppedPackets = -1;
+    private static long previousWireGuardSchedulerErrors = -1;
 
     public static final class Sample {
         public final long timestamp;
@@ -50,6 +52,18 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         public final long bypassedBytes;
         public final long queuePackets;
         public final long queueBytes;
+        public final long directQueuePackets;
+        public final long directQueueBytes;
+        public final long directQueuePeakPackets;
+        public final long directQueuePeakBytes;
+        public final long wireguardQueuePackets;
+        public final long wireguardQueueBytes;
+        public final long wireguardQueuePeakPackets;
+        public final long wireguardQueuePeakBytes;
+        public final long directDroppedPackets;
+        public final long directSchedulerErrors;
+        public final long wireguardDroppedPackets;
+        public final long wireguardSchedulerErrors;
         public final long droppedPackets;
         public final long schedulerErrors;
         public final boolean shapingEnabled;
@@ -67,8 +81,20 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
             queueBytes = cursor.getLong(8);
             droppedPackets = cursor.getLong(9);
             schedulerErrors = cursor.getLong(10);
-            shapingEnabled = cursor.getInt(11) != 0;
-            vpnActive = cursor.getInt(12) != 0;
+            directQueuePackets = cursor.getLong(11);
+            directQueueBytes = cursor.getLong(12);
+            directQueuePeakPackets = cursor.getLong(13);
+            directQueuePeakBytes = cursor.getLong(14);
+            wireguardQueuePackets = cursor.getLong(15);
+            wireguardQueueBytes = cursor.getLong(16);
+            wireguardQueuePeakPackets = cursor.getLong(17);
+            wireguardQueuePeakBytes = cursor.getLong(18);
+            directDroppedPackets = cursor.getLong(19);
+            directSchedulerErrors = cursor.getLong(20);
+            wireguardDroppedPackets = cursor.getLong(21);
+            wireguardSchedulerErrors = cursor.getLong(22);
+            shapingEnabled = cursor.getInt(23) != 0;
+            vpnActive = cursor.getInt(24) != 0;
         }
     }
 
@@ -116,6 +142,18 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
                 "queue_bytes INTEGER NOT NULL," +
                 "dropped_packets INTEGER NOT NULL," +
                 "scheduler_errors INTEGER NOT NULL," +
+                "direct_queue_packets INTEGER NOT NULL DEFAULT 0," +
+                "direct_queue_bytes INTEGER NOT NULL DEFAULT 0," +
+                "direct_queue_peak_packets INTEGER NOT NULL DEFAULT 0," +
+                "direct_queue_peak_bytes INTEGER NOT NULL DEFAULT 0," +
+                "wireguard_queue_packets INTEGER NOT NULL DEFAULT 0," +
+                "wireguard_queue_bytes INTEGER NOT NULL DEFAULT 0," +
+                "wireguard_queue_peak_packets INTEGER NOT NULL DEFAULT 0," +
+                "wireguard_queue_peak_bytes INTEGER NOT NULL DEFAULT 0," +
+                "direct_dropped_packets INTEGER NOT NULL DEFAULT 0," +
+                "direct_scheduler_errors INTEGER NOT NULL DEFAULT 0," +
+                "wireguard_dropped_packets INTEGER NOT NULL DEFAULT 0," +
+                "wireguard_scheduler_errors INTEGER NOT NULL DEFAULT 0," +
                 "shaping_enabled INTEGER NOT NULL," +
                 "vpn_active INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX speed_samples_time ON " + TABLE_SAMPLES + "(timestamp_ms)");
@@ -133,8 +171,19 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // No historical schema exists yet. Future migrations must preserve the
-        // aggregate-only contract and must not add traffic identity fields.
+        if (oldVersion < 2) {
+            String[] columns = {
+                    "direct_queue_packets", "direct_queue_bytes",
+                    "direct_queue_peak_packets", "direct_queue_peak_bytes",
+                    "wireguard_queue_packets", "wireguard_queue_bytes",
+                    "wireguard_queue_peak_packets", "wireguard_queue_peak_bytes",
+                    "direct_dropped_packets", "direct_scheduler_errors",
+                    "wireguard_dropped_packets", "wireguard_scheduler_errors"
+            };
+            for (String column : columns)
+                db.execSQL("ALTER TABLE " + TABLE_SAMPLES + " ADD COLUMN " +
+                        column + " INTEGER NOT NULL DEFAULT 0");
+        }
     }
 
     public static synchronized void recordSnapshot(Context context, long[] v, boolean vpnActive) {
@@ -147,8 +196,16 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         long downRate = rate(v[1], previousDownloadBytes, elapsed);
         long delayedDelta = delta(v[2], previousDelayedBytes);
         long bypassedDelta = delta(v[3], previousBypassedBytes);
-        long droppedDelta = delta(v[10] + v[13], previousDroppedPackets);
-        long schedulerDelta = delta(v[6] + v[14], previousSchedulerErrors);
+        long directDroppedDelta = delta(v[13], previousDirectDroppedPackets);
+        long directSchedulerDelta = delta(v[14], previousDirectSchedulerErrors);
+        long wireguardDroppedDelta = delta(v[10], previousWireGuardDroppedPackets);
+        long wireguardSchedulerDelta = delta(v[6], previousWireGuardSchedulerErrors);
+        long droppedDelta = directDroppedDelta + wireguardDroppedDelta;
+        long schedulerDelta = directSchedulerDelta + wireguardSchedulerDelta;
+        long directPeakPackets = v.length > 15 ? v[15] : 0;
+        long directPeakBytes = v.length > 16 ? v[16] : 0;
+        long wireguardPeakPackets = v.length > 17 ? v[17] : 0;
+        long wireguardPeakBytes = v.length > 18 ? v[18] : 0;
 
         ContentValues row = new ContentValues();
         row.put("timestamp_ms", now);
@@ -162,6 +219,18 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         row.put("queue_bytes", v[5] + v[12]);
         row.put("dropped_packets", droppedDelta);
         row.put("scheduler_errors", schedulerDelta);
+        row.put("direct_queue_packets", v[11]);
+        row.put("direct_queue_bytes", v[12]);
+        row.put("direct_queue_peak_packets", directPeakPackets);
+        row.put("direct_queue_peak_bytes", directPeakBytes);
+        row.put("wireguard_queue_packets", v[4]);
+        row.put("wireguard_queue_bytes", v[5]);
+        row.put("wireguard_queue_peak_packets", wireguardPeakPackets);
+        row.put("wireguard_queue_peak_bytes", wireguardPeakBytes);
+        row.put("direct_dropped_packets", directDroppedDelta);
+        row.put("direct_scheduler_errors", directSchedulerDelta);
+        row.put("wireguard_dropped_packets", wireguardDroppedDelta);
+        row.put("wireguard_scheduler_errors", wireguardSchedulerDelta);
         row.put("shaping_enabled", v[9] != 0 ? 1 : 0);
         row.put("vpn_active", vpnActive ? 1 : 0);
 
@@ -180,8 +249,10 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         previousDownloadBytes = v[1];
         previousDelayedBytes = v[2];
         previousBypassedBytes = v[3];
-        previousDroppedPackets = v[10] + v[13];
-        previousSchedulerErrors = v[6] + v[14];
+        previousDirectDroppedPackets = v[13];
+        previousDirectSchedulerErrors = v[14];
+        previousWireGuardDroppedPackets = v[10];
+        previousWireGuardSchedulerErrors = v[6];
 
         try {
             db.delete(TABLE_SAMPLES, "timestamp_ms < ?", new String[]{Long.toString(now - RETENTION_MS)});
@@ -235,6 +306,12 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
                 "SELECT timestamp_ms, upload_bytes_per_second, download_bytes_per_second, " +
                         "upload_limit, download_limit, delayed_bytes, bypassed_bytes, " +
                         "queue_packets, queue_bytes, dropped_packets, scheduler_errors, " +
+                        "direct_queue_packets, direct_queue_bytes, " +
+                        "direct_queue_peak_packets, direct_queue_peak_bytes, " +
+                        "wireguard_queue_packets, wireguard_queue_bytes, " +
+                        "wireguard_queue_peak_packets, wireguard_queue_peak_bytes, " +
+                        "direct_dropped_packets, direct_scheduler_errors, " +
+                        "wireguard_dropped_packets, wireguard_scheduler_errors, " +
                         "shaping_enabled, vpn_active FROM " + TABLE_SAMPLES +
                         " ORDER BY id DESC LIMIT ?", new String[]{Integer.toString(Math.max(1, limit))})) {
             while (cursor.moveToNext())
