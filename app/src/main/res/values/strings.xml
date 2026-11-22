@@ -978,9 +978,10 @@ Sincerely,\n\n]]></string>
     <string name="speed_log_title">Speed Log Keeper</string>
     <string name="speed_log_waiting">Waiting for speed-shaping samples</string>
     <string name="speed_log_no_samples">No samples recorded yet</string>
-    <string name="speed_log_active">Shaping active</string>
+    <string name="speed_log_active">Shaping enabled</string>
     <string name="speed_log_vpn_unlimited">VPN active · shaping unlimited</string>
     <string name="speed_log_vpn_stopped">VPN stopped</string>
+    <string name="speed_log_stale">Telemetry stale · VPN may have stopped unexpectedly</string>
     <string name="speed_log_upload">Upload: %1$s</string>
     <string name="speed_log_download">Download: %1$s</string>
     <string name="speed_log_sample_note">Five-second aggregate sample. Rates show bytes passed by the shaper, not confirmed delivery or physical-link speed.</string>
