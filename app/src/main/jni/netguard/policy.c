@@ -32,6 +32,7 @@
 static pthread_once_t policy_once = PTHREAD_ONCE_INIT;
 static int policy_ok = 0;
 static int speed_ok = 0;
+static int speed_wg_queue_ok = 0;
 
 static int (*p_abi_version)(void) = NULL;
 static void (*p_set_route_uids)(const jint *uids, int count, int default_tunnel) = NULL;
@@ -85,13 +86,20 @@ static void policy_load() {
     p_speed_wg_dequeue = dlsym(handle, "tc_speed_prototype_wg_dequeue");
     p_speed_wg_drop = dlsym(handle, "tc_speed_prototype_wg_drop");
     p_speed_wg_reset_pending = dlsym(handle, "tc_speed_prototype_wg_reset_pending");
+    // Core shaping must remain available even if an older bridge lacks the
+    // newer queue-diagnostic hooks. Telemetry is optional and must never turn
+    // a working limiter into an unlimited one.
     speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL &&
-               p_speed_record != NULL && p_speed_bypass != NULL && p_speed_delayed != NULL &&
-               p_speed_snapshot != NULL && p_speed_wg_enqueue != NULL &&
-               p_speed_wg_dequeue != NULL && p_speed_wg_drop != NULL &&
-               p_speed_wg_reset_pending != NULL;
+               p_speed_record != NULL && p_speed_bypass != NULL &&
+               p_speed_delayed != NULL && p_speed_snapshot != NULL;
+    speed_wg_queue_ok = p_speed_reset_queue_peaks != NULL &&
+                        p_speed_wg_enqueue != NULL && p_speed_wg_dequeue != NULL &&
+                        p_speed_wg_drop != NULL && p_speed_wg_reset_pending != NULL;
     if (!speed_ok)
         log_android(ANDROID_LOG_WARN, "speed shaping: shared limiter symbols unavailable");
+    else if (!speed_wg_queue_ok)
+        log_android(ANDROID_LOG_WARN,
+                    "speed shaping: WireGuard queue telemetry unavailable; limiter remains enabled");
 
     p_abi_version = dlsym(handle, "tc_policy_abi_version");
     p_set_route_uids = dlsym(handle, "tc_policy_set_route_uids");
@@ -132,31 +140,31 @@ int speed_limit_configure(uint64_t upload_bytes_per_second,
 
 void speed_limit_reset_queue_peaks(void) {
     policy_ensure();
-    if (p_speed_reset_queue_peaks != NULL)
+    if (speed_wg_queue_ok)
         p_speed_reset_queue_peaks();
 }
 
 void speed_limit_wg_enqueue(size_t bytes) {
     policy_ensure();
-    if (speed_ok)
+    if (speed_wg_queue_ok)
         p_speed_wg_enqueue((uint64_t) bytes);
 }
 
 void speed_limit_wg_dequeue(size_t bytes) {
     policy_ensure();
-    if (speed_ok)
+    if (speed_wg_queue_ok)
         p_speed_wg_dequeue((uint64_t) bytes);
 }
 
 void speed_limit_wg_drop(void) {
     policy_ensure();
-    if (speed_ok)
+    if (speed_wg_queue_ok)
         p_speed_wg_drop();
 }
 
 uint64_t speed_limit_wg_reset_pending(void) {
     policy_ensure();
-    return speed_ok ? p_speed_wg_reset_pending() : 0;
+    return speed_wg_queue_ok ? p_speed_wg_reset_pending() : 0;
 }
 
 int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_53) {
@@ -188,7 +196,19 @@ int speed_limit_snapshot(uint64_t *out, size_t out_len) {
     policy_ensure();
     if (!speed_ok || out == NULL || out_len < 13)
         return -1;
-    return p_speed_snapshot(out, out_len);
+    int rc = p_speed_snapshot(out, out_len);
+    if (rc != 0)
+        return rc;
+    if (!speed_wg_queue_ok) {
+        // Preserve limiter operation while refusing to present incomplete
+        // legacy WireGuard queue values as measured zeros.
+        out[4] = UINT64_MAX;
+        out[5] = UINT64_MAX;
+        out[10] = UINT64_MAX;
+        out[11] = UINT64_MAX;
+        out[12] = UINT64_MAX;
+    }
+    return 0;
 }
 
 static uint64_t speed_monotonic_ns(void) {
