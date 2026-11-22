@@ -394,6 +394,7 @@ void clear(struct context *ctx);
 int speed_limit_configure(uint64_t upload_bytes_per_second,
                           uint64_t download_bytes_per_second,
                           const jint *exempt_uids, size_t exempt_count);
+void speed_limit_reset_queue_peaks(void);
 int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_53);
 void speed_limit_record(int direction, size_t bytes);
 void speed_limit_record_bypass(size_t bytes);
