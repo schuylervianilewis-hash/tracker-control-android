@@ -33,6 +33,7 @@ void clear(struct context *ctx) {
         ng_free(p, __FILE__, __LINE__);
     }
     ctx->ng_session = NULL;
+    ctx->speed_dropped_packets += ctx->speed_queue.packet_count;
     speed_pending_queue_clear(&ctx->speed_queue);
     ctx->speed_backpressure = 0;
 }
@@ -390,6 +391,7 @@ void *handle_events(void *a) {
     }
 
 cleanup:
+    args->ctx->speed_dropped_packets += args->ctx->speed_queue.packet_count;
     speed_pending_queue_clear(&args->ctx->speed_queue);
     args->ctx->speed_backpressure = 0;
     if (args->ctx->speed_timer_fd >= 0) {
