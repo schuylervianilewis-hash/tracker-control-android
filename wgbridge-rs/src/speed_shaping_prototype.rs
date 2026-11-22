@@ -183,11 +183,6 @@ pub extern "C" fn tc_speed_prototype_bypass(bytes: u64) {
     global_telemetry().bypassed_bytes.fetch_add(bytes, Ordering::Relaxed);
 }
 
-#[no_mangle]
-pub extern "C" fn tc_speed_prototype_scheduler_error() {
-    record_scheduler_error();
-}
-
 /// Snapshot contains aggregate counters and configured rates only. It deliberately
 /// has no fields for UID, app, protocol, address, port, DNS, or flow identity.
 #[no_mangle]
