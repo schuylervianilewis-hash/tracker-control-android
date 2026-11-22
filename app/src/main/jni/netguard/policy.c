@@ -48,6 +48,10 @@ static void (*p_speed_bypass)(uint64_t bytes) = NULL;
 static void (*p_speed_delayed)(uint64_t bytes) = NULL;
 static int (*p_speed_snapshot)(uint64_t *out, size_t out_len) = NULL;
 static void (*p_speed_reset_queue_peaks)(void) = NULL;
+static void (*p_speed_wg_enqueue)(uint64_t bytes) = NULL;
+static void (*p_speed_wg_dequeue)(uint64_t bytes) = NULL;
+static void (*p_speed_wg_drop)(void) = NULL;
+static uint64_t (*p_speed_wg_reset_pending)(void) = NULL;
 
 // Facts the packet path reads per packet. Mirrored here rather than queried
 // across the boundary: with no per-app override configured — the shipped
@@ -77,9 +81,15 @@ static void policy_load() {
     p_speed_delayed = dlsym(handle, "tc_speed_prototype_delayed");
     p_speed_snapshot = dlsym(handle, "tc_speed_prototype_snapshot");
     p_speed_reset_queue_peaks = dlsym(handle, "tc_speed_prototype_reset_queue_peaks");
+    p_speed_wg_enqueue = dlsym(handle, "tc_speed_prototype_wg_enqueue");
+    p_speed_wg_dequeue = dlsym(handle, "tc_speed_prototype_wg_dequeue");
+    p_speed_wg_drop = dlsym(handle, "tc_speed_prototype_wg_drop");
+    p_speed_wg_reset_pending = dlsym(handle, "tc_speed_prototype_wg_reset_pending");
     speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL &&
                p_speed_record != NULL && p_speed_bypass != NULL && p_speed_delayed != NULL &&
-               p_speed_snapshot != NULL;
+               p_speed_snapshot != NULL && p_speed_wg_enqueue != NULL &&
+               p_speed_wg_dequeue != NULL && p_speed_wg_drop != NULL &&
+               p_speed_wg_reset_pending != NULL;
     if (!speed_ok)
         log_android(ANDROID_LOG_WARN, "speed shaping: shared limiter symbols unavailable");
 
@@ -124,6 +134,29 @@ void speed_limit_reset_queue_peaks(void) {
     policy_ensure();
     if (p_speed_reset_queue_peaks != NULL)
         p_speed_reset_queue_peaks();
+}
+
+void speed_limit_wg_enqueue(size_t bytes) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_wg_enqueue((uint64_t) bytes);
+}
+
+void speed_limit_wg_dequeue(size_t bytes) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_wg_dequeue((uint64_t) bytes);
+}
+
+void speed_limit_wg_drop(void) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_wg_drop();
+}
+
+uint64_t speed_limit_wg_reset_pending(void) {
+    policy_ensure();
+    return speed_ok ? p_speed_wg_reset_pending() : 0;
 }
 
 int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_53) {
