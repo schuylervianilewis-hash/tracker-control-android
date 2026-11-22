@@ -6,6 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock, PoisonError};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 const NANOS_PER_SECOND: u128 = 1_000_000_000;
@@ -92,6 +93,101 @@ impl Bucket {
 
         wait_ns.min(u64::MAX as u128) as u64
     }
+}
+
+#[derive(Default)]
+struct SpeedTelemetry {
+    upload_bytes: AtomicU64,
+    download_bytes: AtomicU64,
+    delayed_bytes: AtomicU64,
+    bypassed_bytes: AtomicU64,
+    wg_pending_packets: AtomicU64,
+    wg_pending_bytes: AtomicU64,
+    scheduler_errors: AtomicU64,
+}
+
+fn global_telemetry() -> &'static SpeedTelemetry {
+    static TELEMETRY: OnceLock<SpeedTelemetry> = OnceLock::new();
+    TELEMETRY.get_or_init(SpeedTelemetry::default)
+}
+
+/// Record bytes that have passed the shaper. No packet or owner metadata is retained.
+pub fn record_transmitted(direction: Direction, bytes: usize) {
+    let counter = match direction {
+        Direction::Upload => &global_telemetry().upload_bytes,
+        Direction::Download => &global_telemetry().download_bytes,
+    };
+    counter.fetch_add(bytes as u64, Ordering::Relaxed);
+}
+
+/// Track only the count and total size of packets currently waiting in WireGuard.
+pub fn record_wg_pending(add: bool, bytes: usize) {
+    let telemetry = global_telemetry();
+    if add {
+        telemetry.wg_pending_packets.fetch_add(1, Ordering::Relaxed);
+        telemetry.wg_pending_bytes.fetch_add(bytes as u64, Ordering::Relaxed);
+    } else {
+        telemetry.wg_pending_packets.fetch_sub(1, Ordering::Relaxed);
+        telemetry.wg_pending_bytes.fetch_sub(bytes as u64, Ordering::Relaxed);
+    }
+}
+
+pub fn record_scheduler_error() {
+    global_telemetry().scheduler_errors.fetch_add(1, Ordering::Relaxed);
+}
+
+#[no_mangle]
+pub extern "C" fn tc_speed_prototype_record(direction: i32, bytes: u64) -> i32 {
+    let Some(direction) = Direction::from_abi(direction) else { return -1; };
+    let counter = match direction {
+        Direction::Upload => &global_telemetry().upload_bytes,
+        Direction::Download => &global_telemetry().download_bytes,
+    };
+    counter.fetch_add(bytes, Ordering::Relaxed);
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn tc_speed_prototype_pending(add: i32, bytes: u64) {
+    let telemetry = global_telemetry();
+    if add != 0 {
+        telemetry.wg_pending_packets.fetch_add(1, Ordering::Relaxed);
+        telemetry.wg_pending_bytes.fetch_add(bytes, Ordering::Relaxed);
+    } else {
+        telemetry.wg_pending_packets.fetch_sub(1, Ordering::Relaxed);
+        telemetry.wg_pending_bytes.fetch_sub(bytes, Ordering::Relaxed);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn tc_speed_prototype_scheduler_error() {
+    record_scheduler_error();
+}
+
+/// Snapshot contains aggregate counters and configured rates only. It deliberately
+/// has no fields for UID, app, protocol, address, port, DNS, or flow identity.
+#[no_mangle]
+pub unsafe extern "C" fn tc_speed_prototype_snapshot(out: *mut u64, out_len: usize) -> i32 {
+    if out.is_null() || out_len < 10 { return -1; }
+    let limiter = global_limiter().lock().unwrap_or_else(PoisonError::into_inner);
+    let telemetry = global_telemetry();
+    let upload_rate = limiter.buckets[Direction::Upload.index()].rate_bytes_per_second;
+    let download_rate = limiter.buckets[Direction::Download.index()].rate_bytes_per_second;
+    let values = [
+        telemetry.upload_bytes.load(Ordering::Relaxed),
+        telemetry.download_bytes.load(Ordering::Relaxed),
+        telemetry.delayed_bytes.load(Ordering::Relaxed),
+        telemetry.bypassed_bytes.load(Ordering::Relaxed),
+        telemetry.wg_pending_packets.load(Ordering::Relaxed),
+        telemetry.wg_pending_bytes.load(Ordering::Relaxed),
+        telemetry.scheduler_errors.load(Ordering::Relaxed),
+        upload_rate,
+        download_rate,
+        u64::from(upload_rate > 0 || download_rate > 0),
+    ];
+    // SAFETY: caller promises out points to at least out_len writable u64 values.
+    unsafe { std::ptr::copy_nonoverlapping(values.as_ptr(), out, values.len()); }
+    0
 }
 
 #[derive(Clone, Debug)]
@@ -321,15 +417,24 @@ pub extern "C" fn tc_speed_prototype_reserve(
     let mut limiter = global_limiter()
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
+    let byte_count = bytes.min(u64::MAX as usize) as u64;
     match limiter.reserve(
         direction,
         uid,
-        bytes.min(u64::MAX as usize) as u64,
+        byte_count,
         dns_port_53 != 0,
         monotonic_now_ns(),
     ) {
-        ReserveDecision::Bypass => 0,
-        ReserveDecision::WaitNanos(wait) => wait.min(i64::MAX as u64) as i64,
+        ReserveDecision::Bypass => {
+            global_telemetry().bypassed_bytes.fetch_add(byte_count, Ordering::Relaxed);
+            0
+        }
+        ReserveDecision::WaitNanos(wait) => {
+            if wait > 0 {
+                global_telemetry().delayed_bytes.fetch_add(byte_count, Ordering::Relaxed);
+            }
+            wait.min(i64::MAX as u64) as i64
+        }
     }
 }
 
