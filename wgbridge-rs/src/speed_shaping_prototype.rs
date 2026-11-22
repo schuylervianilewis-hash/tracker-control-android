@@ -170,6 +170,11 @@ pub extern "C" fn tc_speed_prototype_record(direction: i32, bytes: u64) -> i32 {
 }
 
 #[no_mangle]
+pub extern "C" fn tc_speed_prototype_delayed(bytes: u64) {
+    global_telemetry().delayed_bytes.fetch_add(bytes, Ordering::Relaxed);
+}
+
+#[no_mangle]
 pub extern "C" fn tc_speed_prototype_bypass(bytes: u64) {
     global_telemetry().bypassed_bytes.fetch_add(bytes, Ordering::Relaxed);
 }
@@ -457,12 +462,7 @@ pub extern "C" fn tc_speed_prototype_reserve(
             global_telemetry().bypassed_bytes.fetch_add(byte_count, Ordering::Relaxed);
             0
         }
-        ReserveDecision::WaitNanos(wait) => {
-            if wait > 0 {
-                global_telemetry().delayed_bytes.fetch_add(byte_count, Ordering::Relaxed);
-            }
-            wait.min(i64::MAX as u64) as i64
-        }
+        ReserveDecision::WaitNanos(wait) => wait.min(i64::MAX as u64) as i64
     }
 }
 
