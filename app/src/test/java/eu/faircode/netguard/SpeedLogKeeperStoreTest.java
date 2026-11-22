@@ -79,13 +79,17 @@ public class SpeedLogKeeperStoreTest {
                 db.getMaximumSize() <= 8L * 1024L * 1024L);
 
         try (Cursor cursor = db.rawQuery("SELECT queue_packets, queue_bytes, " +
-                "direct_queue_packets, wireguard_queue_packets " +
+                "direct_queue_packets, direct_queue_bytes, direct_queue_peak_packets, " +
+                "direct_queue_peak_bytes, wireguard_queue_packets, wireguard_queue_bytes, " +
+                "wireguard_queue_peak_packets, wireguard_queue_peak_bytes, " +
+                "direct_dropped_packets, direct_scheduler_errors, " +
+                "wireguard_dropped_packets, wireguard_scheduler_errors " +
                 "FROM speed_samples ORDER BY id ASC LIMIT 1", null)) {
             assertTrue("legacy aggregate sample survives migration", cursor.moveToFirst());
             assertEquals(3L, cursor.getLong(0));
             assertEquals(300L, cursor.getLong(1));
-            assertEquals(-1L, cursor.getLong(2));
-            assertEquals(-1L, cursor.getLong(3));
+            for (int i = 2; i < 14; i++)
+                assertEquals("legacy path metric " + i + " remains unknown", -1L, cursor.getLong(i));
         }
 
         long[] snapshot = new long[19];
@@ -96,10 +100,18 @@ public class SpeedLogKeeperStoreTest {
         snapshot[15] = 9; snapshot[16] = 900;
         snapshot[17] = 4; snapshot[18] = 400;
         SpeedLogKeeperStore.recordSnapshot(context, snapshot, true);
+
+        long[] nextSnapshot = snapshot.clone();
+        nextSnapshot[6] = 6; nextSnapshot[10] = 5;
+        nextSnapshot[13] = 8; nextSnapshot[14] = 9;
+        SpeedLogKeeperStore.recordSnapshot(context, nextSnapshot, true);
         try (Cursor cursor = db.rawQuery("SELECT queue_packets, queue_bytes, " +
                 "direct_queue_packets, direct_queue_bytes, direct_queue_peak_packets, " +
                 "direct_queue_peak_bytes, wireguard_queue_packets, wireguard_queue_bytes, " +
-                "wireguard_queue_peak_packets, wireguard_queue_peak_bytes " +
+                "wireguard_queue_peak_packets, wireguard_queue_peak_bytes, " +
+                "direct_dropped_packets, direct_scheduler_errors, " +
+                "wireguard_dropped_packets, wireguard_scheduler_errors, " +
+                "dropped_packets, scheduler_errors " +
                 "FROM speed_samples ORDER BY id DESC LIMIT 1", null)) {
             assertTrue(cursor.moveToFirst());
             assertEquals(7L, cursor.getLong(0));
@@ -112,6 +124,12 @@ public class SpeedLogKeeperStoreTest {
             assertEquals(200L, cursor.getLong(7));
             assertEquals(4L, cursor.getLong(8));
             assertEquals(400L, cursor.getLong(9));
+            assertEquals(2L, cursor.getLong(10));
+            assertEquals(2L, cursor.getLong(11));
+            assertEquals(2L, cursor.getLong(12));
+            assertEquals(2L, cursor.getLong(13));
+            assertEquals(4L, cursor.getLong(14));
+            assertEquals(4L, cursor.getLong(15));
         }
     }
 
