@@ -4460,14 +4460,6 @@ public class ServiceSinkhole extends VpnService {
                 Log.e(TAG, ex.toString() + "\n" + Log.getStackTraceString(ex));
             }
 
-            if (initialized) {
-                // Sample after native teardown so queued drops and the final
-                // inactive state are reflected in the last persisted record.
-                recordSpeedSnapshot(false);
-                SpeedLogKeeperStore.recordEvent(ServiceSinkhole.this,
-                        SpeedLogKeeperStore.EVENT_VPN_STOPPED);
-            }
-
             // Final teardown of the egress side, mirroring CommandHandler.stop().
             // Only that command path used to do this, so a destroy that did not
             // come through it — a system revoke (onRevoke -> stopSelf), or
@@ -4482,6 +4474,14 @@ public class ServiceSinkhole extends VpnService {
                 net.kollnig.missioncontrol.dns.DnsProxyServer.getInstance(ServiceSinkhole.this).stop();
             } catch (Throwable ex) {
                 Log.e(TAG, ex.toString() + "\n" + Log.getStackTraceString(ex));
+            }
+
+            if (initialized) {
+                // Sample after native teardown so queued drops and the final
+                // inactive state are reflected in the last persisted record.
+                recordSpeedSnapshot(false);
+                SpeedLogKeeperStore.recordEvent(ServiceSinkhole.this,
+                        SpeedLogKeeperStore.EVENT_VPN_STOPPED);
             }
 
             if (initialized) {
