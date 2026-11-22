@@ -14,7 +14,7 @@ use crate::callbacks::DnsSink;
 use crate::dns::DnsInspector;
 use crate::speed_shaping_integration::flow_key_from_ip_packet;
 use crate::speed_shaping_prototype::{
-    monotonic_now_ns, tc_speed_prototype_reserve, FlowOwnerMap,
+    monotonic_now_ns, record_transmitted, record_scheduler_error, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
 };
 
 pub struct TunFdSend {
@@ -110,13 +110,18 @@ impl IpSend for TunFdSend {
             if dns_port_53 { 1 } else { 0 },
         );
         if wait_ns > 0 {
+            let _pending = PendingGuard::new(data.len());
             tokio::time::sleep(Duration::from_nanos(wait_ns as u64)).await;
         } else if wait_ns < 0 {
+            record_scheduler_error();
             log::error!("speed limiter rejected WireGuard download reservation");
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
 
         let n = write_fd(self.fd.as_raw_fd(), data);
+        if n == data.len() as isize {
+            record_transmitted(crate::speed_shaping_prototype::Direction::Download, data.len());
+        }
         let (errors, streak) = record_tun_write(
             &self.write_failures_total,
             &self.write_failures_streak,
