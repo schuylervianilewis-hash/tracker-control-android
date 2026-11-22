@@ -978,6 +978,8 @@ Sincerely,\n\n]]></string>
     <string name="speed_log_title">Speed Log Keeper</string>
     <string name="speed_log_waiting">Waiting for speed-shaping samples</string>
     <string name="speed_log_no_samples">No samples recorded yet</string>
+    <string name="speed_log_limits_unknown">Limit state unavailable until first sample</string>
+    <string name="speed_log_queue_unknown">Queue state unavailable until first sample</string>
     <string name="speed_log_active">Shaping enabled</string>
     <string name="speed_log_vpn_unlimited">VPN active · shaping unlimited</string>
     <string name="speed_log_vpn_stopped">VPN stopped</string>
