@@ -351,6 +351,14 @@ public class SettingsHostActivity extends AppCompatActivity implements SharedPre
         if (pref != null)
             pref.setSummary(wgStatus);
 
+        Preference pref_speed_log = screen.findPreference("speed_log_keeper");
+        if (pref_speed_log != null) {
+            pref_speed_log.setOnPreferenceClickListener(preference -> {
+                startActivity(new Intent(SettingsHostActivity.this, ActivitySpeedLogKeeper.class));
+                return true;
+            });
+        }
+
         // Show resolved
         Preference pref_show_resolved = screen.findPreference("show_resolved");
         if (pref_show_resolved != null) {
