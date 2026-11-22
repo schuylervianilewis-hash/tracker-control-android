@@ -45,6 +45,7 @@ static int64_t (*p_speed_reserve)(int32_t direction, int32_t uid,
                                   size_t bytes, int32_t dns_port_53) = NULL;
 static int (*p_speed_record)(int32_t direction, uint64_t bytes) = NULL;
 static void (*p_speed_bypass)(uint64_t bytes) = NULL;
+static void (*p_speed_delayed)(uint64_t bytes) = NULL;
 static void (*p_speed_scheduler_error)(void) = NULL;
 static int (*p_speed_snapshot)(uint64_t *out, size_t out_len) = NULL;
 
@@ -73,10 +74,11 @@ static void policy_load() {
     p_speed_reserve = dlsym(handle, "tc_speed_prototype_reserve");
     p_speed_record = dlsym(handle, "tc_speed_prototype_record");
     p_speed_bypass = dlsym(handle, "tc_speed_prototype_bypass");
+    p_speed_delayed = dlsym(handle, "tc_speed_prototype_delayed");
     p_speed_scheduler_error = dlsym(handle, "tc_speed_prototype_scheduler_error");
     p_speed_snapshot = dlsym(handle, "tc_speed_prototype_snapshot");
     speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL &&
-               p_speed_record != NULL && p_speed_bypass != NULL &&
+               p_speed_record != NULL && p_speed_bypass != NULL && p_speed_delayed != NULL &&
                p_speed_scheduler_error != NULL && p_speed_snapshot != NULL;
     if (!speed_ok)
         log_android(ANDROID_LOG_WARN, "speed shaping: shared limiter symbols unavailable");
@@ -129,6 +131,12 @@ void speed_limit_record(int direction, size_t bytes) {
     policy_ensure();
     if (speed_ok)
         p_speed_record(direction, (uint64_t) bytes);
+}
+
+void speed_limit_record_delayed(size_t bytes) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_delayed((uint64_t) bytes);
 }
 
 void speed_limit_record_bypass(size_t bytes) {
