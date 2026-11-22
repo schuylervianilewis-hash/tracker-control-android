@@ -4,9 +4,15 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
+import com.google.android.material.appbar.AppBarLayout;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
@@ -42,6 +48,24 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
         if (getSupportActionBar() != null)
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         toolbar.setNavigationOnClickListener(v -> finish());
+
+        AppBarLayout appBar = findViewById(R.id.appbar);
+        final int appBarInitialTop = appBar.getPaddingTop();
+        ViewCompat.setOnApplyWindowInsetsListener(appBar, (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(v.getPaddingLeft(), appBarInitialTop + systemBars.top,
+                    v.getPaddingRight(), v.getPaddingBottom());
+            return insets;
+        });
+
+        View scrollContainer = findViewById(R.id.speed_log_scroll);
+        final int containerInitialBottom = scrollContainer.getPaddingBottom();
+        ViewCompat.setOnApplyWindowInsetsListener(scrollContainer, (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(),
+                    containerInitialBottom + systemBars.bottom);
+            return insets;
+        });
     }
 
     @Override
