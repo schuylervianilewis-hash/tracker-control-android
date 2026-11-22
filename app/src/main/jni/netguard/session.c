@@ -67,7 +67,6 @@ static void update_speed_backpressure(const struct arguments *args,
         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, args->tun, ev_tun)) {
             int error = errno;
             ctx->speed_scheduler_errors++;
-            speed_limit_scheduler_error();
             log_android(ANDROID_LOG_ERROR,
                         "speed shaping: failed to resume TUN reads errno %d: %s",
                         error, strerror(error));
@@ -116,7 +115,6 @@ void *handle_events(void *a) {
                                                TFD_NONBLOCK | TFD_CLOEXEC);
     if (args->ctx->speed_timer_fd < 0) {
         args->ctx->speed_scheduler_errors++;
-        speed_limit_scheduler_error();
         log_android(ANDROID_LOG_ERROR,
                     "speed shaping: timerfd create failed errno %d: %s; disabling limiter",
                     errno, strerror(errno));
@@ -127,7 +125,6 @@ void *handle_events(void *a) {
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, args->ctx->speed_timer_fd, &ev_speed)) {
             int error = errno;
             args->ctx->speed_scheduler_errors++;
-            speed_limit_scheduler_error();
             log_android(ANDROID_LOG_ERROR,
                         "speed shaping: timerfd epoll add failed errno %d: %s; disabling limiter",
                         error, strerror(error));
