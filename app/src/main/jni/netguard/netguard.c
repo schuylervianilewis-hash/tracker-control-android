@@ -588,7 +588,11 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1wireguard_1stop(JNIEnv *env, jobj
 JNIEXPORT jlongArray JNICALL
 Java_eu_faircode_netguard_ServiceSinkhole_jni_1speed_1snapshot(
         JNIEnv *env, jobject instance, jlong context) {
-    uint64_t rust[13] = {0};
+    // UINT64_MAX is the signed -1 "unavailable" sentinel at the Java boundary.
+    // A missing/older Rust bridge must not turn absent telemetry into measured zero.
+    uint64_t rust[13];
+    for (size_t i = 0; i < 13; i++)
+        rust[i] = UINT64_MAX;
     speed_limit_snapshot(rust, 13);
 
     struct context *ctx = (struct context *) context;
@@ -596,7 +600,7 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1speed_1snapshot(
         (jlong) rust[0], (jlong) rust[1], (jlong) rust[2], (jlong) rust[3],
         (jlong) rust[4], (jlong) rust[5], (jlong) rust[6],
         (jlong) rust[7], (jlong) rust[8], (jlong) rust[9], (jlong) rust[10],
-        0, 0, 0, 0, 0, 0, (jlong) rust[11], (jlong) rust[12]
+        -1, -1, -1, -1, -1, -1, (jlong) rust[11], (jlong) rust[12]
     };
     if (ctx != NULL) {
         struct speed_queue_telemetry *direct = &ctx->speed_direct_telemetry;
