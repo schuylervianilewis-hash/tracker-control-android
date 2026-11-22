@@ -135,6 +135,47 @@ public class SpeedLogKeeperStoreTest {
             assertEquals(4L, cursor.getLong(14));
             assertEquals(4L, cursor.getLong(15));
         }
+
+        // Missing optional Rust queue hooks must remain "unknown", not zero,
+        // while the Direct path continues to report its own measured values.
+        long[] unavailable = nextSnapshot.clone();
+        for (int i = 0; i <= 10; i++)
+            unavailable[i] = -1;
+        unavailable[17] = -1;
+        unavailable[18] = -1;
+        SpeedLogKeeperStore.recordSnapshot(context, unavailable, true);
+        try (Cursor cursor = db.rawQuery("SELECT upload_bytes_per_second, " +
+                "download_bytes_per_second, upload_limit, download_limit, delayed_bytes, " +
+                "bypassed_bytes, queue_packets, queue_bytes, dropped_packets, scheduler_errors, " +
+                "direct_queue_packets, wireguard_queue_packets, wireguard_dropped_packets, " +
+                "wireguard_scheduler_errors, shaping_enabled " +
+                "FROM speed_samples ORDER BY id DESC LIMIT 1", null)) {
+            assertTrue(cursor.moveToFirst());
+            assertEquals(-1.0, cursor.getDouble(0), 0.0);
+            assertEquals(-1.0, cursor.getDouble(1), 0.0);
+            for (int i = 2; i <= 9; i++)
+                assertEquals("unavailable Rust metric " + i, -1L, cursor.getLong(i));
+            assertEquals(5L, cursor.getLong(10));
+            assertEquals(-1L, cursor.getLong(11));
+            assertEquals(-1L, cursor.getLong(12));
+            assertEquals(-1L, cursor.getLong(13));
+            assertEquals(-1L, cursor.getLong(14));
+        }
+
+        // The first valid sample after an unavailable interval recovers without
+        // inventing a huge delta from the -1 sentinel.
+        SpeedLogKeeperStore.recordSnapshot(context, nextSnapshot, true);
+        try (Cursor cursor = db.rawQuery("SELECT queue_packets, queue_bytes, " +
+                "dropped_packets, scheduler_errors, upload_bytes_per_second, " +
+                "shaping_enabled FROM speed_samples ORDER BY id DESC LIMIT 1", null)) {
+            assertTrue(cursor.moveToFirst());
+            assertEquals(7L, cursor.getLong(0));
+            assertEquals(700L, cursor.getLong(1));
+            assertEquals(0L, cursor.getLong(2));
+            assertEquals(0L, cursor.getLong(3));
+            assertEquals(0.0, cursor.getDouble(4), 0.0);
+            assertEquals(1L, cursor.getLong(5));
+        }
     }
 
     private Set<String> columns(SQLiteDatabase db, String table) {
