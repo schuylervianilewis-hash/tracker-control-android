@@ -104,6 +104,7 @@ struct SpeedTelemetry {
     wg_pending_packets: AtomicU64,
     wg_pending_bytes: AtomicU64,
     scheduler_errors: AtomicU64,
+    dropped_packets: AtomicU64,
 }
 
 fn global_telemetry() -> &'static SpeedTelemetry {
@@ -149,6 +150,10 @@ impl Drop for PendingGuard {
     }
 }
 
+pub fn record_dropped_packet() {
+    global_telemetry().dropped_packets.fetch_add(1, Ordering::Relaxed);
+}
+
 pub fn record_scheduler_error() {
     global_telemetry().scheduler_errors.fetch_add(1, Ordering::Relaxed);
 }
@@ -190,7 +195,7 @@ pub extern "C" fn tc_speed_prototype_scheduler_error() {
 /// has no fields for UID, app, protocol, address, port, DNS, or flow identity.
 #[no_mangle]
 pub unsafe extern "C" fn tc_speed_prototype_snapshot(out: *mut u64, out_len: usize) -> i32 {
-    if out.is_null() || out_len < 10 { return -1; }
+    if out.is_null() || out_len < 11 { return -1; }
     let limiter = global_limiter().lock().unwrap_or_else(PoisonError::into_inner);
     let telemetry = global_telemetry();
     let upload_rate = limiter.buckets[Direction::Upload.index()].rate_bytes_per_second;
@@ -206,6 +211,7 @@ pub unsafe extern "C" fn tc_speed_prototype_snapshot(out: *mut u64, out_len: usi
         upload_rate,
         download_rate,
         u64::from(upload_rate > 0 || download_rate > 0),
+        telemetry.dropped_packets.load(Ordering::Relaxed),
     ];
     // SAFETY: caller promises out points to at least out_len writable u64 values.
     unsafe { std::ptr::copy_nonoverlapping(values.as_ptr(), out, values.len()); }
