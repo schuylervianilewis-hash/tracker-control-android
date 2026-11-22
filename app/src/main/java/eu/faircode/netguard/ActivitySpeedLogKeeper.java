@@ -149,6 +149,8 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
                 status.setText(R.string.speed_log_vpn_stopped);
             else if (System.currentTimeMillis() - latest.timestamp > 15_000L)
                 status.setText(R.string.speed_log_stale);
+            else if (!latest.shapingKnown)
+                status.setText(R.string.speed_log_shaping_unknown);
             else
                 status.setText(latest.shapingEnabled
                         ? R.string.speed_log_active : R.string.speed_log_vpn_unlimited);
@@ -157,32 +159,27 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
             limits.setText(getString(R.string.speed_log_limits,
                     formatLimit(latest.uploadLimit), formatLimit(latest.downloadLimit)));
             queue.setText(getString(R.string.speed_log_queue,
-                    latest.queuePackets, formatBytes(latest.queueBytes)));
-            if (latest.directQueuePackets < 0 || latest.wireguardQueuePackets < 0) {
+                    formatOptionalCount(latest.queuePackets), formatOptionalBytes(latest.queueBytes)));
+            if (latest.directQueuePackets < 0)
                 directQueue.setText(R.string.speed_log_path_queue_unknown);
-                wireguardQueue.setText(R.string.speed_log_path_queue_unknown);
-            } else {
+            else
                 directQueue.setText(getString(R.string.speed_log_direct_queue,
                         formatOptionalCount(latest.directQueuePackets), formatOptionalBytes(latest.directQueueBytes),
                         formatOptionalCount(latest.directQueuePeakPackets), formatOptionalBytes(latest.directQueuePeakBytes)));
+            if (latest.wireguardQueuePackets < 0)
+                wireguardQueue.setText(R.string.speed_log_path_queue_unknown);
+            else
                 wireguardQueue.setText(getString(R.string.speed_log_wireguard_queue,
                         formatOptionalCount(latest.wireguardQueuePackets), formatOptionalBytes(latest.wireguardQueueBytes),
                         formatOptionalCount(latest.wireguardQueuePeakPackets), formatOptionalBytes(latest.wireguardQueuePeakBytes)));
-            }
-            if (latest.directDroppedPackets < 0 || latest.wireguardDroppedPackets < 0)
-                pathDrops.setText(R.string.speed_log_path_drops_unknown);
-            else
-                pathDrops.setText(getString(R.string.speed_log_path_drops,
-                        formatOptionalCount(latest.directDroppedPackets), formatOptionalCount(latest.wireguardDroppedPackets)));
-            if (latest.directSchedulerErrors < 0 || latest.wireguardSchedulerErrors < 0)
-                pathErrors.setText(R.string.speed_log_path_errors_unknown);
-            else
-                pathErrors.setText(getString(R.string.speed_log_path_errors,
-                        formatOptionalCount(latest.directSchedulerErrors), formatOptionalCount(latest.wireguardSchedulerErrors)));
-            delayed.setText(getString(R.string.speed_log_delayed, formatBytes(latest.delayedBytes)));
-            bypassed.setText(getString(R.string.speed_log_bypassed, formatBytes(latest.bypassedBytes)));
-            drops.setText(getString(R.string.speed_log_drops, Long.toString(latest.droppedPackets)));
-            errors.setText(getString(R.string.speed_log_errors, Long.toString(latest.schedulerErrors)));
+            pathDrops.setText(getString(R.string.speed_log_path_drops,
+                    formatOptionalCount(latest.directDroppedPackets), formatOptionalCount(latest.wireguardDroppedPackets)));
+            pathErrors.setText(getString(R.string.speed_log_path_errors,
+                    formatOptionalCount(latest.directSchedulerErrors), formatOptionalCount(latest.wireguardSchedulerErrors)));
+            delayed.setText(getString(R.string.speed_log_delayed, formatOptionalBytes(latest.delayedBytes)));
+            bypassed.setText(getString(R.string.speed_log_bypassed, formatOptionalBytes(latest.bypassedBytes)));
+            drops.setText(getString(R.string.speed_log_drops, formatOptionalCount(latest.droppedPackets)));
+            errors.setText(getString(R.string.speed_log_errors, formatOptionalCount(latest.schedulerErrors)));
             updated.setText(getString(R.string.speed_log_updated,
                     new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date(latest.timestamp))));
             history.setText(formatHistory(samples));
@@ -223,14 +220,14 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
             for (SpeedLogKeeperStore.Sample sample : samples) {
                 out.append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                                 .format(new Date(sample.timestamp))).append(" | ")
-                        .append(sample.uploadBytesPerSecond).append(" | ")
-                        .append(sample.downloadBytesPerSecond).append(" | ")
-                        .append(sample.uploadLimit).append(" | ")
-                        .append(sample.downloadLimit).append(" | ")
-                        .append(sample.delayedBytes).append(" | ")
-                        .append(sample.bypassedBytes).append(" | ")
-                        .append(sample.queuePackets).append(" | ")
-                        .append(sample.queueBytes).append(" | ")
+                        .append(sample.uploadBytesPerSecond < 0 ? "n/a" : Double.toString(sample.uploadBytesPerSecond)).append(" | ")
+                        .append(sample.downloadBytesPerSecond < 0 ? "n/a" : Double.toString(sample.downloadBytesPerSecond)).append(" | ")
+                        .append(formatOptionalCount(sample.uploadLimit)).append(" | ")
+                        .append(formatOptionalCount(sample.downloadLimit)).append(" | ")
+                        .append(formatOptionalBytes(sample.delayedBytes)).append(" | ")
+                        .append(formatOptionalBytes(sample.bypassedBytes)).append(" | ")
+                        .append(formatOptionalCount(sample.queuePackets)).append(" | ")
+                        .append(formatOptionalBytes(sample.queueBytes)).append(" | ")
                         .append(formatOptionalCount(sample.directQueuePackets)).append(" | ")
                         .append(formatOptionalBytes(sample.directQueueBytes)).append(" | ")
                         .append(formatOptionalCount(sample.directQueuePeakPackets)).append(" | ")
@@ -243,9 +240,9 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
                         .append(formatOptionalCount(sample.directSchedulerErrors)).append(" | ")
                         .append(formatOptionalCount(sample.wireguardDroppedPackets)).append(" | ")
                         .append(formatOptionalCount(sample.wireguardSchedulerErrors)).append(" | ")
-                        .append(sample.droppedPackets).append(" | ")
-                        .append(sample.schedulerErrors).append(" | ")
-                        .append(sample.shapingEnabled).append(" | ")
+                        .append(formatOptionalCount(sample.droppedPackets)).append(" | ")
+                        .append(formatOptionalCount(sample.schedulerErrors)).append(" | ")
+                        .append(sample.shapingKnown ? Boolean.toString(sample.shapingEnabled) : "n/a").append(" | ")
                         .append(sample.vpnActive).append('\n');
             }
             out.append("\nEVENTS (newest first)\n");
@@ -290,7 +287,7 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
                     .format(new Date(sample.timestamp)))
                     .append("  ↑ ").append(formatRate(sample.uploadBytesPerSecond))
                     .append("  ↓ ").append(formatRate(sample.downloadBytesPerSecond))
-                    .append("  Q ").append(sample.queuePackets)
+                    .append("  Q ").append(formatOptionalCount(sample.queuePackets))
                     .append("  Direct ").append(formatOptionalCount(sample.directQueuePackets))
                     .append("  WG pending ").append(formatOptionalCount(sample.wireguardQueuePackets))
                     .append('\n');
@@ -319,11 +316,14 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
     }
 
     private String formatRate(double bytesPerSecond) {
-        return new DecimalFormat("0.0").format(bytesPerSecond / 1000.0) + " KB/s";
+        return bytesPerSecond < 0 ? "n/a"
+                : new DecimalFormat("0.0").format(bytesPerSecond / 1000.0) + " KB/s";
     }
 
     private String formatLimit(long bytesPerSecond) {
-        return bytesPerSecond <= 0 ? getString(R.string.speed_log_unlimited)
+        if (bytesPerSecond < 0)
+            return "n/a";
+        return bytesPerSecond == 0 ? getString(R.string.speed_log_unlimited)
                 : new DecimalFormat("0.#").format(bytesPerSecond / 1000.0) + " KB/s";
     }
 
