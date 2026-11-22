@@ -984,8 +984,12 @@ public class ServiceSinkhole extends VpnService {
             uidToApp.clear();
             uidToPackage.clear();
 
-            // Check for update
-            if (!Util.isPlayStoreInstall(ServiceSinkhole.this)
+            // This fork does not publish TrackerControl-compatible releases.
+            // Clear any stale upstream update notification and only check when
+            // a project-owned release endpoint is explicitly configured.
+            if (TextUtils.isEmpty(BuildConfig.GITHUB_LATEST_API))
+                NotificationManagerCompat.from(ServiceSinkhole.this).cancel(NOTIFY_UPDATE);
+            else if (!Util.isPlayStoreInstall(ServiceSinkhole.this)
                     && !Util.isFDroidInstall()
                     && prefs.getBoolean("update_check", true))
                 checkUpdate();
