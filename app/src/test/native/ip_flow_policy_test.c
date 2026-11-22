@@ -67,6 +67,10 @@ static int bridge_speed_record(int32_t direction, uint64_t bytes) {
 static void bridge_speed_bypass(uint64_t bytes) { (void) bytes; }
 static void bridge_speed_delayed(uint64_t bytes) { (void) bytes; }
 static void bridge_speed_reset_queue_peaks(void) { }
+static void bridge_speed_wg_enqueue(uint64_t bytes) { (void) bytes; }
+static void bridge_speed_wg_dequeue(uint64_t bytes) { (void) bytes; }
+static void bridge_speed_wg_drop(void) { }
+static uint64_t bridge_speed_wg_reset_pending(void) { return 0; }
 static int bridge_speed_snapshot(uint64_t *out, size_t count) {
     if (out == NULL || count < 11)
         return -1;
@@ -116,6 +120,10 @@ void *__wrap_dlsym(void *handle, const char *name) {
     if (strcmp(name, "tc_speed_prototype_delayed") == 0) return (void *) bridge_speed_delayed;
     if (strcmp(name, "tc_speed_prototype_snapshot") == 0) return (void *) bridge_speed_snapshot;
     if (strcmp(name, "tc_speed_prototype_reset_queue_peaks") == 0) return (void *) bridge_speed_reset_queue_peaks;
+    if (strcmp(name, "tc_speed_prototype_wg_enqueue") == 0) return (void *) bridge_speed_wg_enqueue;
+    if (strcmp(name, "tc_speed_prototype_wg_dequeue") == 0) return (void *) bridge_speed_wg_dequeue;
+    if (strcmp(name, "tc_speed_prototype_wg_drop") == 0) return (void *) bridge_speed_wg_drop;
+    if (strcmp(name, "tc_speed_prototype_wg_reset_pending") == 0) return (void *) bridge_speed_wg_reset_pending;
     CHECK(0, "policy bridge requests a recognised symbol");
     return NULL;
 }
