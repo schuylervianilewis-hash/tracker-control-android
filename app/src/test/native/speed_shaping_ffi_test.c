@@ -14,6 +14,9 @@ typedef int32_t (*configure_fn)(uint64_t, uint64_t, const int32_t *, size_t);
 typedef int64_t (*reserve_fn)(int32_t, int32_t, size_t, int32_t);
 typedef int32_t (*snapshot_fn)(uint64_t *, size_t);
 typedef void (*reset_peaks_fn)(void);
+typedef void (*wg_bytes_fn)(uint64_t);
+typedef void (*wg_drop_fn)(void);
+typedef uint64_t (*wg_reset_pending_fn)(void);
 typedef int32_t (*decode_fn)(const uint8_t *, size_t, int32_t *, size_t *);
 
 static int failures = 0;
@@ -49,13 +52,23 @@ int main(int argc, char **argv) {
     reserve_fn reserve = (reserve_fn) dlsym(handle, "tc_speed_prototype_reserve");
     snapshot_fn snapshot = (snapshot_fn) dlsym(handle, "tc_speed_prototype_snapshot");
     reset_peaks_fn reset_peaks = (reset_peaks_fn) dlsym(handle, "tc_speed_prototype_reset_queue_peaks");
+    wg_bytes_fn wg_enqueue = (wg_bytes_fn) dlsym(handle, "tc_speed_prototype_wg_enqueue");
+    wg_bytes_fn wg_dequeue = (wg_bytes_fn) dlsym(handle, "tc_speed_prototype_wg_dequeue");
+    wg_drop_fn wg_drop = (wg_drop_fn) dlsym(handle, "tc_speed_prototype_wg_drop");
+    wg_reset_pending_fn wg_reset_pending =
+            (wg_reset_pending_fn) dlsym(handle, "tc_speed_prototype_wg_reset_pending");
     decode_fn decode = (decode_fn) dlsym(handle, "tc_speed_prototype_decode_envelope");
     CHECK(configure != NULL, "dlsym configure");
     CHECK(reserve != NULL, "dlsym reserve");
     CHECK(snapshot != NULL, "dlsym speed telemetry snapshot");
     CHECK(reset_peaks != NULL, "dlsym queue peak reset");
+    CHECK(wg_enqueue != NULL, "dlsym WireGuard queue enqueue");
+    CHECK(wg_dequeue != NULL, "dlsym WireGuard queue dequeue");
+    CHECK(wg_drop != NULL, "dlsym WireGuard drop counter");
+    CHECK(wg_reset_pending != NULL, "dlsym WireGuard pending reset");
     CHECK(decode != NULL, "dlsym envelope decoder");
-    if (!configure || !reserve || !snapshot || !reset_peaks || !decode) {
+    if (!configure || !reserve || !snapshot || !reset_peaks ||
+        !wg_enqueue || !wg_dequeue || !wg_drop || !wg_reset_pending || !decode) {
         dlclose(handle);
         return EXIT_FAILURE;
     }
@@ -70,6 +83,37 @@ int main(int argc, char **argv) {
           "speed snapshot exposes extended WireGuard queue peak counters");
     CHECK(extended_snapshot[11] == 0 && extended_snapshot[12] == 0,
           "new WireGuard queue peak counters start at zero");
+
+    // C increments before publishing a datagram; Rust retires it only after
+    // the packet has been paced and handed to gotatun.
+    wg_enqueue(120);
+    wg_enqueue(80);
+    CHECK(snapshot(extended_snapshot, 13) == 0, "snapshot queued WireGuard packets");
+    CHECK(extended_snapshot[4] == 2 && extended_snapshot[5] == 200,
+          "WireGuard current queue counts include socketpair payloads");
+    CHECK(extended_snapshot[11] == 2 && extended_snapshot[12] == 200,
+          "WireGuard queue high-water marks include socketpair backlog");
+
+    wg_dequeue(120);
+    CHECK(snapshot(extended_snapshot, 13) == 0, "snapshot after WireGuard dequeue");
+    CHECK(extended_snapshot[4] == 1 && extended_snapshot[5] == 80,
+          "WireGuard dequeue retires exactly one packet and its bytes");
+    CHECK(extended_snapshot[11] == 2 && extended_snapshot[12] == 200,
+          "WireGuard high-water marks remain monotonic");
+
+    // Failed native writes roll back their reservation and are counted as drops.
+    wg_enqueue(40);
+    wg_dequeue(40);
+    wg_drop();
+    CHECK(wg_reset_pending() == 1,
+          "shutdown reports one datagram abandoned in the socketpair");
+    CHECK(snapshot(extended_snapshot, 13) == 0, "snapshot after WireGuard shutdown reset");
+    CHECK(extended_snapshot[4] == 0 && extended_snapshot[5] == 0,
+          "WireGuard pending queue is empty after shutdown reset");
+    CHECK(extended_snapshot[10] == 2,
+          "explicit write failure and abandoned shutdown datagram are both counted as drops");
+    CHECK(extended_snapshot[11] == 2 && extended_snapshot[12] == 200,
+          "shutdown reset preserves WireGuard queue high-water marks");
     CHECK(reserve(0, 10001, 1000, 0) == 0, "Direct caller first upload reservation");
     CHECK(reserve(0, 10002, 1000, 0) == 0, "WireGuard caller shares upload bucket");
     int64_t shared_wait = reserve(0, 10001, 1000, 0);
