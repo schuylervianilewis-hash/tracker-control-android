@@ -172,6 +172,8 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 2) {
+            // -1 distinguishes historical samples (which had no path split) from
+            // a real, measured zero-length queue or zero-error interval.
             String[] columns = {
                     "direct_queue_packets", "direct_queue_bytes",
                     "direct_queue_peak_packets", "direct_queue_peak_bytes",
