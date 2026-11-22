@@ -1,11 +1,15 @@
 package eu.faircode.netguard;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
@@ -48,6 +52,7 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
         if (getSupportActionBar() != null)
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         toolbar.setNavigationOnClickListener(v -> finish());
+        findViewById(R.id.speed_log_copy_all).setOnClickListener(v -> copyFullLog());
 
         AppBarLayout appBar = findViewById(R.id.appbar);
         final int appBarInitialTop = appBar.getPaddingTop();
@@ -161,6 +166,69 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
         handler.removeCallbacks(refresh);
         ioExecutor.shutdownNow();
         super.onDestroy();
+    }
+
+
+    private void copyFullLog() {
+        View copyButton = findViewById(R.id.speed_log_copy_all);
+        copyButton.setEnabled(false);
+        ioExecutor.execute(() -> {
+            SpeedLogKeeperStore store = SpeedLogKeeperStore.getInstance(getApplicationContext());
+            List<SpeedLogKeeperStore.Sample> samples = store.getRecentSamples(20_000);
+            List<SpeedLogKeeperStore.Event> events = store.getRecentEvents(1_000);
+            StringBuilder out = new StringBuilder(16_384);
+            out.append("Vianshield Speed Log Keeper\n")
+                    .append("Exported: ")
+                    .append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                            .format(new Date()))
+                    .append("\nRetention: up to 24 hours\n")
+                    .append("Samples: ").append(samples.size())
+                    .append(" | Events: ").append(events.size()).append("\n\n")
+                    .append("SAMPLES (newest first)\n")
+                    .append("Timestamp | Upload B/s | Download B/s | Upload limit B/s | Download limit B/s")
+                    .append(" | Delayed bytes | Bypassed bytes | Queue packets | Queue bytes")
+                    .append(" | Dropped packets | Scheduler errors | Shaping enabled | VPN active\n");
+            for (SpeedLogKeeperStore.Sample sample : samples) {
+                out.append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                                .format(new Date(sample.timestamp))).append(" | ")
+                        .append(sample.uploadBytesPerSecond).append(" | ")
+                        .append(sample.downloadBytesPerSecond).append(" | ")
+                        .append(sample.uploadLimit).append(" | ")
+                        .append(sample.downloadLimit).append(" | ")
+                        .append(sample.delayedBytes).append(" | ")
+                        .append(sample.bypassedBytes).append(" | ")
+                        .append(sample.queuePackets).append(" | ")
+                        .append(sample.queueBytes).append(" | ")
+                        .append(sample.droppedPackets).append(" | ")
+                        .append(sample.schedulerErrors).append(" | ")
+                        .append(sample.shapingEnabled).append(" | ")
+                        .append(sample.vpnActive).append('\n');
+            }
+            out.append("\nEVENTS (newest first)\n");
+            for (SpeedLogKeeperStore.Event event : events) {
+                String label;
+                switch (event.code) {
+                    case SpeedLogKeeperStore.EVENT_VPN_STARTED: label = "VPN_STARTED"; break;
+                    case SpeedLogKeeperStore.EVENT_VPN_STOPPED: label = "VPN_STOPPED"; break;
+                    case SpeedLogKeeperStore.EVENT_WIREGUARD_STARTED: label = "WIREGUARD_STARTED"; break;
+                    case SpeedLogKeeperStore.EVENT_WIREGUARD_STOPPED: label = "WIREGUARD_STOPPED"; break;
+                    case SpeedLogKeeperStore.EVENT_WIREGUARD_ERROR: label = "WIREGUARD_ERROR"; break;
+                    default: label = "UNKNOWN_" + event.code; break;
+                }
+                out.append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                                .format(new Date(event.timestamp)))
+                        .append(" | ").append(label).append('\n');
+            }
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed())
+                    return;
+                ClipboardManager clipboard =
+                        (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                clipboard.setPrimaryClip(ClipData.newPlainText("Vianshield speed log", out.toString()));
+                copyButton.setEnabled(true);
+                Toast.makeText(this, R.string.speed_log_copied, Toast.LENGTH_SHORT).show();
+            });
+        });
     }
 
     private String formatHistory(List<SpeedLogKeeperStore.Sample> samples) {
