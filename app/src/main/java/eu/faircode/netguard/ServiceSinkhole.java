@@ -244,21 +244,25 @@ public class ServiceSinkhole extends VpnService {
     private volatile LogHandler logHandler;
     private volatile StatsHandler statsHandler;
 
+    private void recordSpeedSnapshot(boolean active) {
+        long[] snapshot = null;
+        synchronized (jni_lock) {
+            if (jni_context != 0) {
+                try {
+                    snapshot = jni_speed_snapshot(jni_context);
+                } catch (Throwable ignored) {
+                    // Telemetry must never interfere with VPN service operation.
+                }
+            }
+        }
+        if (snapshot != null)
+            SpeedLogKeeperStore.recordSnapshot(ServiceSinkhole.this, snapshot, active);
+    }
+
     private final Runnable speedTelemetrySampler = new Runnable() {
         @Override
         public void run() {
-            long[] snapshot = null;
-            synchronized (jni_lock) {
-                if (jni_context != 0) {
-                    try {
-                        snapshot = jni_speed_snapshot(jni_context);
-                    } catch (Throwable ignored) {
-                        // Telemetry must never interfere with VPN service operation.
-                    }
-                }
-            }
-            if (snapshot != null)
-                SpeedLogKeeperStore.recordSnapshot(ServiceSinkhole.this, snapshot, vpnEstablished);
+            recordSpeedSnapshot(vpnEstablished);
             Handler handler = statsHandler;
             if (handler != null)
                 handler.postDelayed(this, 5_000L);
@@ -4385,6 +4389,7 @@ public class ServiceSinkhole extends VpnService {
             if (initialized) {
                 if (statsHandler != null)
                     statsHandler.removeCallbacks(speedTelemetrySampler);
+                recordSpeedSnapshot(false);
                 SpeedLogKeeperStore.recordEvent(ServiceSinkhole.this,
                         SpeedLogKeeperStore.EVENT_VPN_STOPPED);
                 commandLooper.quit();
