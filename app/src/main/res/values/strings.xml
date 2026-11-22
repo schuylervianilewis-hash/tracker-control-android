@@ -999,12 +999,12 @@ Sincerely,\n\n]]></string>
     <string name="speed_log_drops">Shaper/TUN packet drops in last sample: %1$s</string>
     <string name="speed_log_errors">Scheduler errors in last sample: %1$s</string>
     <string name="speed_log_path_queue_unknown">Per-path queue telemetry unavailable until first sample</string>
-    <string name="speed_log_direct_queue">Direct queue: %1$d packets / %2$s · peak %3$d / %4$s</string>
-    <string name="speed_log_wireguard_queue">WireGuard queue: %1$d packets / %2$s · peak %3$d / %4$s</string>
+    <string name="speed_log_direct_queue">Direct queue: %1$s packets / %2$s · peak %3$s / %4$s</string>
+    <string name="speed_log_wireguard_queue">WireGuard queue: %1$s packets / %2$s · peak %3$s / %4$s</string>
     <string name="speed_log_path_drops_unknown">Per-path drops unavailable until first sample</string>
-    <string name="speed_log_path_drops">Drops in last sample — Direct: %1$d · WireGuard: %2$d</string>
+    <string name="speed_log_path_drops">Drops in last sample — Direct: %1$s · WireGuard: %2$s</string>
     <string name="speed_log_path_errors_unknown">Per-path scheduler errors unavailable until first sample</string>
-    <string name="speed_log_path_errors">Scheduler errors in last sample — Direct: %1$d · WireGuard: %2$d</string>
+    <string name="speed_log_path_errors">Scheduler errors in last sample — Direct: %1$s · WireGuard: %2$s</string>
     <string name="speed_log_updated">Last sample: %1$s</string>
     <string name="speed_log_history_title">Recent throughput samples</string>
     <string name="speed_log_no_history">No throughput history yet</string>
