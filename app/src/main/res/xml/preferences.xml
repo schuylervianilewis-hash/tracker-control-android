@@ -19,6 +19,10 @@
             android:key="disable_on_call"
             android:summary="@string/summary_call"
             android:title="@string/setting_call" />
+        <Preference
+            android:key="speed_log_keeper"
+            android:summary="@string/speed_log_privacy"
+            android:title="@string/speed_log_title" />
     </PreferenceCategory>
 
     <PreferenceCategory
