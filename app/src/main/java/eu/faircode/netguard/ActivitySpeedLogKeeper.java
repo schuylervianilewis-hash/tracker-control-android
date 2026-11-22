@@ -94,7 +94,7 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
     private void render() {
         ioExecutor.execute(() -> {
             SpeedLogKeeperStore store = SpeedLogKeeperStore.getInstance(getApplicationContext());
-            List<SpeedLogKeeperStore.Sample> samples = store.getRecentSamples(30);
+            List<SpeedLogKeeperStore.Sample> samples = store.getRecentSamples(60);
             List<SpeedLogKeeperStore.Event> events = store.getRecentEvents(12);
             runOnUiThread(() -> {
                 if (!isFinishing() && !isDestroyed())
