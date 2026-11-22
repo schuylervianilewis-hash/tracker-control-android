@@ -109,19 +109,28 @@ impl IpSend for TunFdSend {
             data.len(),
             if dns_port_53 { 1 } else { 0 },
         );
-        if wait_ns > 0 {
-            let _pending = PendingGuard::new(data.len());
+        let pending = if wait_ns > 0 {
+            let pending = PendingGuard::new(data.len());
             tokio::time::sleep(Duration::from_nanos(wait_ns as u64)).await;
             record_delayed(data.len());
+            Some(pending)
         } else if wait_ns < 0 {
+            let pending = PendingGuard::new(data.len());
             record_scheduler_error();
             log::error!("speed limiter rejected WireGuard download reservation");
             tokio::time::sleep(Duration::from_secs(1)).await;
-        }
+            record_delayed(data.len());
+            Some(pending)
+        } else {
+            None
+        };
 
         let n = write_fd(self.fd.as_raw_fd(), data);
         if n == data.len() as isize {
             record_transmitted(crate::speed_shaping_prototype::Direction::Download, data.len());
+            if let Some(pending) = pending {
+                pending.complete();
+            }
         }
         let (errors, streak) = record_tun_write(
             &self.write_failures_total,
@@ -129,7 +138,11 @@ impl IpSend for TunFdSend {
             n == data.len() as isize,
         );
         if n != data.len() as isize {
-            record_dropped_packet();
+            if let Some(pending) = pending {
+                drop(pending);
+            } else {
+                record_dropped_packet();
+            }
             // TUN write failures are transient (e.g. ENOBUFS under load) or
             // mean the VPN is being torn down, in which case Java stops us.
             // Never bubble them up: gotatun treats IpSend errors as fatal.
