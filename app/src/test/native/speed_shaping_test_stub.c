@@ -16,3 +16,9 @@ void speed_limit_record(int direction, size_t bytes) {
     (void) direction;
     (void) bytes;
 }
+
+/* Host packet tests do not load the Rust bridge; queue telemetry is inert. */
+void speed_limit_wg_enqueue(size_t bytes) { (void) bytes; }
+void speed_limit_wg_dequeue(size_t bytes) { (void) bytes; }
+void speed_limit_wg_drop(void) { }
+uint64_t speed_limit_wg_reset_pending(void) { return 0; }
