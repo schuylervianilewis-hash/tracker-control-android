@@ -974,4 +974,34 @@ Sincerely,\n\n]]></string>
     <string name="dns_changer_direct_note">Apps configured for Direct or Bypass continue to use Android\'s network DNS and do not use this selection.</string>
     <string name="dns_changer_wireguard_warning">With WireGuard, the selected resolver must be covered by the profile\'s AllowedIPs to travel through the WireGuard peer. The imported profile is never modified by this screen.</string>
 
+
+    <string name="speed_log_title">Speed Log Keeper</string>
+    <string name="speed_log_waiting">Waiting for speed-shaping samples</string>
+    <string name="speed_log_no_samples">No samples recorded yet</string>
+    <string name="speed_log_active">Shaping active</string>
+    <string name="speed_log_unlimited">VPN active · shaping unlimited</string>
+    <string name="speed_log_vpn_stopped">VPN stopped</string>
+    <string name="speed_log_upload">Upload: %1$s</string>
+    <string name="speed_log_download">Download: %1$s</string>
+    <string name="speed_log_limits">Configured limits · Upload: %1$s · Download: %2$s</string>
+    <string name="speed_log_no_limits">No limit configured</string>
+    <string name="speed_log_unlimited">Unlimited</string>
+    <string name="speed_log_queue">Pending queue: %1$d packets · %2$s</string>
+    <string name="speed_log_queue_empty">Pending queue: empty</string>
+    <string name="speed_log_delayed">Bytes delayed in last sample: %1$s</string>
+    <string name="speed_log_bypassed">Bytes bypassed in last sample: %1$s</string>
+    <string name="speed_log_drops">Shaper packet drops in last sample: %1$s</string>
+    <string name="speed_log_errors">Scheduler errors in last sample: %1$s</string>
+    <string name="speed_log_updated">Last sample: %1$s</string>
+    <string name="speed_log_history_title">Recent throughput samples</string>
+    <string name="speed_log_no_history">No throughput history yet</string>
+    <string name="speed_log_events_title">VPN and WireGuard events</string>
+    <string name="speed_log_no_events">No VPN or WireGuard events recorded</string>
+    <string name="speed_log_privacy">This log stores aggregate speed-shaping measurements only. It does not store app identities, UIDs, domains, DNS queries, destination addresses or ports, or per-connection histories. Samples are retained for up to 24 hours (with a hard storage limit).</string>
+    <string name="speed_event_vpn_started">VPN service started</string>
+    <string name="speed_event_vpn_stopped">VPN service stopped</string>
+    <string name="speed_event_wg_started">WireGuard started</string>
+    <string name="speed_event_wg_stopped">WireGuard stopped</string>
+    <string name="speed_event_wg_error">WireGuard error state</string>
+
 </resources>
