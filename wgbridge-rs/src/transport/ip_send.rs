@@ -126,23 +126,25 @@ impl IpSend for TunFdSend {
         };
 
         let n = write_fd(self.fd.as_raw_fd(), data);
-        if n == data.len() as isize {
+        let full_write = n == data.len() as isize;
+        if full_write {
             record_transmitted(crate::speed_shaping_prototype::Direction::Download, data.len());
             if let Some(pending) = pending {
                 pending.complete();
             }
-        }
-        let (errors, streak) = record_tun_write(
-            &self.write_failures_total,
-            &self.write_failures_streak,
-            n == data.len() as isize,
-        );
-        if n != data.len() as isize {
+        } else {
             if let Some(pending) = pending {
                 drop(pending);
             } else {
                 record_dropped_packet();
             }
+        }
+        let (errors, streak) = record_tun_write(
+            &self.write_failures_total,
+            &self.write_failures_streak,
+            full_write,
+        );
+        if !full_write {
             // TUN write failures are transient (e.g. ENOBUFS under load) or
             // mean the VPN is being torn down, in which case Java stops us.
             // Never bubble them up: gotatun treats IpSend errors as fatal.
