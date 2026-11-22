@@ -154,6 +154,10 @@ pub fn record_dropped_packet() {
     global_telemetry().dropped_packets.fetch_add(1, Ordering::Relaxed);
 }
 
+pub fn record_delayed(bytes: usize) {
+    global_telemetry().delayed_bytes.fetch_add(bytes as u64, Ordering::Relaxed);
+}
+
 pub fn record_scheduler_error() {
     global_telemetry().scheduler_errors.fetch_add(1, Ordering::Relaxed);
 }
@@ -171,7 +175,7 @@ pub extern "C" fn tc_speed_prototype_record(direction: i32, bytes: u64) -> i32 {
 
 #[no_mangle]
 pub extern "C" fn tc_speed_prototype_delayed(bytes: u64) {
-    global_telemetry().delayed_bytes.fetch_add(bytes, Ordering::Relaxed);
+    record_delayed(bytes as usize);
 }
 
 #[no_mangle]
