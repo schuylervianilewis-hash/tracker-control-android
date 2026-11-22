@@ -145,7 +145,7 @@ void speed_limit_record_bypass(size_t bytes) {
 
 int speed_limit_snapshot(uint64_t *out, size_t out_len) {
     policy_ensure();
-    if (!speed_ok || out == NULL || out_len < 11)
+    if (!speed_ok || out == NULL || out_len < 13)
         return -1;
     return p_speed_snapshot(out, out_len);
 }
@@ -170,9 +170,10 @@ int speed_pending_arm(struct context *ctx) {
     }
     if (timerfd_settime(ctx->speed_timer_fd, TFD_TIMER_ABSTIME, &timer, NULL) < 0) {
         size_t dropped = ctx->speed_queue.packet_count;
-        ctx->speed_dropped_packets += dropped;
-        ctx->speed_scheduler_errors++;
+        speed_queue_telemetry_record_drop(&ctx->speed_direct_telemetry, dropped);
+        speed_queue_telemetry_record_scheduler_error(&ctx->speed_direct_telemetry);
         speed_pending_queue_clear(&ctx->speed_queue);
+        speed_queue_telemetry_publish(&ctx->speed_direct_telemetry, 0, 0);
         log_android(ANDROID_LOG_ERROR,
                     "speed shaping: timer arm failed errno %d: %s; cleared %zu queued packets",
                     errno, strerror(errno), dropped);
@@ -241,7 +242,7 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
         return 0;
     }
     if (rc != 0) {
-        args->ctx->speed_dropped_packets++;
+        speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry, 1);
         static _Atomic unsigned long queue_drops = 0;
         unsigned long count = atomic_fetch_add_explicit(&queue_drops, 1,
                                                         memory_order_relaxed) + 1;
@@ -252,6 +253,9 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
         return -1;
     }
 
+    speed_queue_telemetry_publish(&args->ctx->speed_direct_telemetry,
+                                   args->ctx->speed_queue.packet_count,
+                                   args->ctx->speed_queue.queued_bytes);
     if (speed_pending_arm(args->ctx) < 0)
         return -1;
     return 1;
@@ -274,7 +278,7 @@ ssize_t speed_write_tun_packet(const struct arguments *args,
     if (written == (ssize_t) length)
         speed_limit_record(1, length);
     else if (written < 0 || written != (ssize_t) length)
-        args->ctx->speed_dropped_packets++;
+        speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry, 1);
     if (written >= 0 && pcap_file != NULL)
         write_pcap_rec(packet, (size_t) written);
     return written;
@@ -310,7 +314,7 @@ void speed_pending_drain(const struct arguments *args, int epoll_fd) {
     if (args->ctx->speed_timer_fd >= 0) {
         ssize_t n = read(args->ctx->speed_timer_fd, &expirations, sizeof(expirations));
         if (n < 0 && errno != EAGAIN && errno != EINTR) {
-            args->ctx->speed_scheduler_errors++;
+            speed_queue_telemetry_record_scheduler_error(&args->ctx->speed_direct_telemetry);
             log_android(ANDROID_LOG_WARN, "speed shaping: timer read failed: %s",
                         strerror(errno));
         }
@@ -325,6 +329,9 @@ void speed_pending_drain(const struct arguments *args, int epoll_fd) {
                                                   &packet, &length, &metadata);
         if (rc <= 0)
             break;
+        speed_queue_telemetry_publish(&args->ctx->speed_direct_telemetry,
+                                       args->ctx->speed_queue.packet_count,
+                                       args->ctx->speed_queue.queued_bytes);
 
         if (metadata.kind == SPEED_PENDING_DIRECT_UPLOAD) {
             speed_pending_dispatch_upload(args, packet, length, &metadata, epoll_fd);
@@ -336,7 +343,7 @@ void speed_pending_drain(const struct arguments *args, int epoll_fd) {
                 speed_limit_record_delayed(length);
                 speed_limit_record(1, length);
             } else {
-                args->ctx->speed_dropped_packets++;
+                speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry, 1);
                 log_android(ANDROID_LOG_WARN,
                             "speed shaping: delayed TUN write %zd/%zu failed errno %d: %s",
                             written, length, errno, strerror(errno));
