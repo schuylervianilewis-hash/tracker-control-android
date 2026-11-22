@@ -23,6 +23,38 @@ public class SpeedLogKeeperStoreTest {
     @Test
     public void databaseSchemaIsAggregateOnlyAndSizeBounded() {
         Context context = RuntimeEnvironment.getApplication();
+        context.deleteDatabase("speed-log-keeper.db");
+
+        // Seed the previous schema/version to verify an in-place migration
+        // preserves aggregate history and marks new path fields unavailable.
+        SQLiteDatabase legacy = context.openOrCreateDatabase(
+                "speed-log-keeper.db", Context.MODE_PRIVATE, null);
+        legacy.execSQL("CREATE TABLE speed_samples (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "timestamp_ms INTEGER NOT NULL," +
+                "upload_bytes_per_second REAL NOT NULL," +
+                "download_bytes_per_second REAL NOT NULL," +
+                "upload_limit INTEGER NOT NULL," +
+                "download_limit INTEGER NOT NULL," +
+                "delayed_bytes INTEGER NOT NULL," +
+                "bypassed_bytes INTEGER NOT NULL," +
+                "queue_packets INTEGER NOT NULL," +
+                "queue_bytes INTEGER NOT NULL," +
+                "dropped_packets INTEGER NOT NULL," +
+                "scheduler_errors INTEGER NOT NULL," +
+                "shaping_enabled INTEGER NOT NULL," +
+                "vpn_active INTEGER NOT NULL)");
+        legacy.execSQL("CREATE TABLE speed_events (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "timestamp_ms INTEGER NOT NULL," +
+                "event_code INTEGER NOT NULL)");
+        legacy.execSQL("INSERT INTO speed_samples (timestamp_ms, upload_bytes_per_second, " +
+                "download_bytes_per_second, upload_limit, download_limit, delayed_bytes, " +
+                "bypassed_bytes, queue_packets, queue_bytes, dropped_packets, scheduler_errors, " +
+                "shaping_enabled, vpn_active) VALUES (1000, 10, 20, 1000, 2000, 0, 0, 3, 300, 0, 0, 1, 1)");
+        legacy.setVersion(1);
+        legacy.close();
+
         SpeedLogKeeperStore store = SpeedLogKeeperStore.getInstance(context);
         SQLiteDatabase db = store.getWritableDatabase();
 
@@ -45,6 +77,16 @@ public class SpeedLogKeeperStoreTest {
 
         assertTrue("Speed telemetry database must stay below its 8 MiB cap",
                 db.getMaximumSize() <= 8L * 1024L * 1024L);
+
+        try (Cursor cursor = db.rawQuery("SELECT queue_packets, queue_bytes, " +
+                "direct_queue_packets, wireguard_queue_packets " +
+                "FROM speed_samples ORDER BY id ASC LIMIT 1", null)) {
+            assertTrue("legacy aggregate sample survives migration", cursor.moveToFirst());
+            assertEquals(3L, cursor.getLong(0));
+            assertEquals(300L, cursor.getLong(1));
+            assertEquals(-1L, cursor.getLong(2));
+            assertEquals(-1L, cursor.getLong(3));
+        }
 
         long[] snapshot = new long[19];
         snapshot[4] = 2; snapshot[5] = 200;
