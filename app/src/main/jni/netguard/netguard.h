@@ -398,7 +398,6 @@ int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_
 void speed_limit_record(int direction, size_t bytes);
 void speed_limit_record_bypass(size_t bytes);
 void speed_limit_record_delayed(size_t bytes);
-void speed_limit_scheduler_error(void);
 int speed_limit_snapshot(uint64_t *out, size_t out_len);
 int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
                          const uint8_t *packet, size_t length, jint uid,
