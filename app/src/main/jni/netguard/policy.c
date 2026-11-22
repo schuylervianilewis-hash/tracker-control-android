@@ -145,7 +145,7 @@ void speed_limit_scheduler_error(void) {
 
 int speed_limit_snapshot(uint64_t *out, size_t out_len) {
     policy_ensure();
-    if (!speed_ok || out == NULL || out_len < 10)
+    if (!speed_ok || out == NULL || out_len < 11)
         return -1;
     return p_speed_snapshot(out, out_len);
 }
