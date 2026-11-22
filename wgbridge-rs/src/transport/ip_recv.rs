@@ -15,7 +15,7 @@ use crate::speed_shaping_integration::{
     decode_envelope, flow_key_from_ip_packet, ENVELOPE_HEADER_LEN, MAX_PACKET_LEN,
 };
 use crate::speed_shaping_prototype::{
-    monotonic_now_ns, record_transmitted, record_scheduler_error, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
+    monotonic_now_ns, record_transmitted, record_delayed, record_scheduler_error, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
 };
 
 /// Upper bound on packets drained per wakeup so one busy burst can't starve
@@ -168,6 +168,7 @@ impl IpRecv for SocketpairRecv {
                 if wait_ns > 0 {
                     let _pending = PendingGuard::new(packet_len);
                     tokio::time::sleep(Duration::from_nanos(wait_ns as u64)).await;
+                    record_delayed(packet_len);
                     record_transmitted(crate::speed_shaping_prototype::Direction::Upload, packet_len);
                 } else if wait_ns < 0 {
                     // Direction is a compile-time constant above. Keep the
