@@ -347,8 +347,6 @@ void speed_pending_drain(const struct arguments *args, int epoll_fd) {
                 speed_limit_record(1, length);
             } else {
                 args->ctx->speed_dropped_packets++;
-                args->ctx->speed_scheduler_errors++;
-                speed_limit_scheduler_error();
                 log_android(ANDROID_LOG_WARN,
                             "speed shaping: delayed TUN write %zd/%zu failed errno %d: %s",
                             written, length, errno, strerror(errno));
