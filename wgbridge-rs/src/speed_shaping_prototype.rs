@@ -103,8 +103,10 @@ struct SpeedTelemetry {
     bypassed_bytes: AtomicU64,
     wg_pending_packets: AtomicU64,
     wg_pending_bytes: AtomicU64,
-    scheduler_errors: AtomicU64,
-    dropped_packets: AtomicU64,
+    wg_peak_pending_packets: AtomicU64,
+    wg_peak_pending_bytes: AtomicU64,
+    wg_scheduler_errors: AtomicU64,
+    wg_dropped_packets: AtomicU64,
 }
 
 fn global_telemetry() -> &'static SpeedTelemetry {
@@ -122,11 +124,19 @@ pub fn record_transmitted(direction: Direction, bytes: usize) {
 }
 
 /// Track only the count and total size of packets currently waiting in WireGuard.
+fn update_peak(peak: &AtomicU64, value: u64) {
+    peak.fetch_max(value, Ordering::Relaxed);
+}
+
+/// Track aggregate WireGuard pending count/bytes and their high-water marks.
 pub fn record_wg_pending(add: bool, bytes: usize) {
     let telemetry = global_telemetry();
     if add {
-        telemetry.wg_pending_packets.fetch_add(1, Ordering::Relaxed);
-        telemetry.wg_pending_bytes.fetch_add(bytes as u64, Ordering::Relaxed);
+        let packets = telemetry.wg_pending_packets.fetch_add(1, Ordering::Relaxed) + 1;
+        let queued_bytes = telemetry.wg_pending_bytes.fetch_add(bytes as u64, Ordering::Relaxed)
+            .saturating_add(bytes as u64);
+        update_peak(&telemetry.wg_peak_pending_packets, packets);
+        update_peak(&telemetry.wg_peak_pending_bytes, queued_bytes);
     } else {
         telemetry.wg_pending_packets.fetch_sub(1, Ordering::Relaxed);
         telemetry.wg_pending_bytes.fetch_sub(bytes as u64, Ordering::Relaxed);
@@ -151,7 +161,7 @@ impl Drop for PendingGuard {
 }
 
 pub fn record_dropped_packet() {
-    global_telemetry().dropped_packets.fetch_add(1, Ordering::Relaxed);
+    global_telemetry().wg_dropped_packets.fetch_add(1, Ordering::Relaxed);
 }
 
 pub fn record_delayed(bytes: usize) {
@@ -159,7 +169,7 @@ pub fn record_delayed(bytes: usize) {
 }
 
 pub fn record_scheduler_error() {
-    global_telemetry().scheduler_errors.fetch_add(1, Ordering::Relaxed);
+    global_telemetry().wg_scheduler_errors.fetch_add(1, Ordering::Relaxed);
 }
 
 #[no_mangle]
@@ -199,14 +209,18 @@ pub unsafe extern "C" fn tc_speed_prototype_snapshot(out: *mut u64, out_len: usi
         telemetry.bypassed_bytes.load(Ordering::Relaxed),
         telemetry.wg_pending_packets.load(Ordering::Relaxed),
         telemetry.wg_pending_bytes.load(Ordering::Relaxed),
-        telemetry.scheduler_errors.load(Ordering::Relaxed),
+        telemetry.wg_scheduler_errors.load(Ordering::Relaxed),
         upload_rate,
         download_rate,
         if upload_rate > 0 || download_rate > 0 { 1 } else { 0 },
-        telemetry.dropped_packets.load(Ordering::Relaxed),
+        telemetry.wg_dropped_packets.load(Ordering::Relaxed),
+        telemetry.wg_peak_pending_packets.load(Ordering::Relaxed),
+        telemetry.wg_peak_pending_bytes.load(Ordering::Relaxed),
     ];
     // SAFETY: caller promises out points to at least out_len writable u64 values.
-    unsafe { std::ptr::copy_nonoverlapping(values.as_ptr(), out, values.len()); }
+    // Keep the original 11-value prefix compatible with older internal callers.
+    let copy_len = out_len.min(values.len());
+    unsafe { std::ptr::copy_nonoverlapping(values.as_ptr(), out, copy_len); }
     0
 }
 
@@ -416,6 +430,13 @@ pub unsafe extern "C" fn tc_speed_prototype_configure(
         download_bytes_per_second,
         exempt,
     );
+    // Called when the native VPN context is initialised. Reset queue peaks for
+    // the new session while leaving cumulative counters monotonic for sampling.
+    let telemetry = global_telemetry();
+    telemetry.wg_peak_pending_packets.store(
+        telemetry.wg_pending_packets.load(Ordering::Relaxed), Ordering::Relaxed);
+    telemetry.wg_peak_pending_bytes.store(
+        telemetry.wg_pending_bytes.load(Ordering::Relaxed), Ordering::Relaxed);
     0
 }
 
@@ -456,6 +477,15 @@ pub extern "C" fn tc_speed_prototype_reserve(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn queue_peak_is_monotonic_and_tracks_high_water() {
+        let peak = AtomicU64::new(0);
+        update_peak(&peak, 4);
+        update_peak(&peak, 2);
+        update_peak(&peak, 9);
+        assert_eq!(peak.load(Ordering::Relaxed), 9);
+    }
 
     fn key4(protocol: u8, sport: u16, dport: u16) -> FlowKey {
         let mut source = [0; 16];
