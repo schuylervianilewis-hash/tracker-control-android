@@ -101,6 +101,7 @@ public class SpeedLogKeeperStoreTest {
         snapshot[17] = 4; snapshot[18] = 400;
         SpeedLogKeeperStore.recordSnapshot(context, snapshot, true);
 
+        // A second interval proves each path stores deltas, not cumulative counters.
         long[] nextSnapshot = snapshot.clone();
         nextSnapshot[6] = 6; nextSnapshot[10] = 5;
         nextSnapshot[13] = 8; nextSnapshot[14] = 9;
