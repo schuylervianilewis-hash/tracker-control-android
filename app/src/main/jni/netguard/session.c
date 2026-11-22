@@ -403,6 +403,8 @@ cleanup:
         args->ctx->speed_backpressure = 0;
         pthread_mutex_unlock(&args->ctx->lock);
     } else {
+        speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry,
+                                           args->ctx->speed_queue.packet_count);
         speed_pending_queue_clear(&args->ctx->speed_queue);
         speed_queue_telemetry_publish(&args->ctx->speed_direct_telemetry, 0, 0);
         args->ctx->speed_backpressure = 0;
