@@ -38,6 +38,15 @@ void clear(struct context *ctx) {
     ctx->speed_backpressure = 0;
 }
 
+static void record_speed_scheduler_error(struct context *ctx) {
+    if (ctx == NULL)
+        return;
+    if (pthread_mutex_lock(&ctx->lock) == 0) {
+        ctx->speed_scheduler_errors++;
+        pthread_mutex_unlock(&ctx->lock);
+    }
+}
+
 static void update_speed_backpressure(const struct arguments *args,
                                        int epoll_fd,
                                        struct epoll_event *ev_tun,
@@ -114,7 +123,7 @@ void *handle_events(void *a) {
     args->ctx->speed_timer_fd = timerfd_create(CLOCK_MONOTONIC,
                                                TFD_NONBLOCK | TFD_CLOEXEC);
     if (args->ctx->speed_timer_fd < 0) {
-        args->ctx->speed_scheduler_errors++;
+        record_speed_scheduler_error(args->ctx);
         log_android(ANDROID_LOG_ERROR,
                     "speed shaping: timerfd create failed errno %d: %s; disabling limiter",
                     errno, strerror(errno));
@@ -124,7 +133,7 @@ void *handle_events(void *a) {
         ev_speed.data.ptr = &ev_speed;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, args->ctx->speed_timer_fd, &ev_speed)) {
             int error = errno;
-            args->ctx->speed_scheduler_errors++;
+            record_speed_scheduler_error(args->ctx);
             log_android(ANDROID_LOG_ERROR,
                         "speed shaping: timerfd epoll add failed errno %d: %s; disabling limiter",
                         error, strerror(error));
@@ -387,9 +396,15 @@ void *handle_events(void *a) {
     }
 
 cleanup:
-    args->ctx->speed_dropped_packets += args->ctx->speed_queue.packet_count;
-    speed_pending_queue_clear(&args->ctx->speed_queue);
-    args->ctx->speed_backpressure = 0;
+    if (pthread_mutex_lock(&args->ctx->lock) == 0) {
+        args->ctx->speed_dropped_packets += args->ctx->speed_queue.packet_count;
+        speed_pending_queue_clear(&args->ctx->speed_queue);
+        args->ctx->speed_backpressure = 0;
+        pthread_mutex_unlock(&args->ctx->lock);
+    } else {
+        speed_pending_queue_clear(&args->ctx->speed_queue);
+        args->ctx->speed_backpressure = 0;
+    }
     if (args->ctx->speed_timer_fd >= 0) {
         if (close(args->ctx->speed_timer_fd))
             log_android(ANDROID_LOG_WARN, "speed shaping: timerfd close failed: %s",
