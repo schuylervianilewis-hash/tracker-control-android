@@ -30,7 +30,8 @@ compile icmp_defensive_test app/src/test/native/icmp_defensive_test.c \
     app/src/main/jni/netguard/icmp.c app/src/test/native/speed_shaping_test_stub.c \
     -Wl,--wrap=close -Wl,--wrap=fcntl -Wl,--wrap=sendto -Wl,--wrap=socket
 compile ip_header_test app/src/test/native/ip_header_test.c \
-    app/src/test/native/ip_header_failfast.c app/src/main/jni/netguard/ip.c
+    app/src/test/native/ip_header_failfast.c app/src/main/jni/netguard/ip.c \
+    app/src/test/native/speed_shaping_test_stub.c
 compile tcp_window_test app/src/test/native/tcp_window_test.c \
     app/src/main/jni/netguard/tcp.c \
     app/src/test/native/speed_shaping_test_stub.c
