@@ -12,6 +12,7 @@
 
 typedef int32_t (*configure_fn)(uint64_t, uint64_t, const int32_t *, size_t);
 typedef int64_t (*reserve_fn)(int32_t, int32_t, size_t, int32_t);
+typedef int32_t (*snapshot_fn)(uint64_t *, size_t);
 typedef int32_t (*decode_fn)(const uint8_t *, size_t, int32_t *, size_t *);
 
 static int failures = 0;
@@ -45,16 +46,26 @@ int main(int argc, char **argv) {
 
     configure_fn configure = (configure_fn) dlsym(handle, "tc_speed_prototype_configure");
     reserve_fn reserve = (reserve_fn) dlsym(handle, "tc_speed_prototype_reserve");
+    snapshot_fn snapshot = (snapshot_fn) dlsym(handle, "tc_speed_prototype_snapshot");
     decode_fn decode = (decode_fn) dlsym(handle, "tc_speed_prototype_decode_envelope");
     CHECK(configure != NULL, "dlsym configure");
     CHECK(reserve != NULL, "dlsym reserve");
+    CHECK(snapshot != NULL, "dlsym speed telemetry snapshot");
     CHECK(decode != NULL, "dlsym envelope decoder");
-    if (!configure || !reserve || !decode) {
+    if (!configure || !reserve || !snapshot || !decode) {
         dlclose(handle);
         return EXIT_FAILURE;
     }
 
     CHECK(configure(1000, 2000, NULL, 0) == 0, "configure shared aggregate buckets");
+    uint64_t legacy_snapshot[11] = {0};
+    uint64_t extended_snapshot[13] = {0};
+    CHECK(snapshot(legacy_snapshot, 11) == 0,
+          "speed snapshot preserves the original 11-value ABI prefix");
+    CHECK(snapshot(extended_snapshot, 13) == 0,
+          "speed snapshot exposes extended WireGuard queue peak counters");
+    CHECK(extended_snapshot[11] == 0 && extended_snapshot[12] == 0,
+          "new WireGuard queue peak counters start at zero");
     CHECK(reserve(0, 10001, 1000, 0) == 0, "Direct caller first upload reservation");
     CHECK(reserve(0, 10002, 1000, 0) == 0, "WireGuard caller shares upload bucket");
     int64_t shared_wait = reserve(0, 10001, 1000, 0);
