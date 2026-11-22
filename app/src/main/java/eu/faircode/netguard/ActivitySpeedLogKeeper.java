@@ -97,7 +97,7 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
         } else {
             SpeedLogKeeperStore.Sample latest = samples.get(0);
             status.setText(latest.vpnActive
-                    ? (latest.shapingEnabled ? R.string.speed_log_active : R.string.speed_log_unlimited)
+                    ? (latest.shapingEnabled ? R.string.speed_log_active : R.string.speed_log_vpn_unlimited)
                     : R.string.speed_log_vpn_stopped);
             upload.setText(getString(R.string.speed_log_upload, formatRate(latest.uploadBytesPerSecond)));
             download.setText(getString(R.string.speed_log_download, formatRate(latest.downloadBytesPerSecond)));
