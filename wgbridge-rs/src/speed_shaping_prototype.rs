@@ -219,7 +219,7 @@ pub unsafe extern "C" fn tc_speed_prototype_snapshot(out: *mut u64, out_len: usi
         telemetry.scheduler_errors.load(Ordering::Relaxed),
         upload_rate,
         download_rate,
-        u64::from(upload_rate > 0 || download_rate > 0),
+        if upload_rate > 0 || download_rate > 0 { 1 } else { 0 },
         telemetry.dropped_packets.load(Ordering::Relaxed),
     ];
     // SAFETY: caller promises out points to at least out_len writable u64 values.
