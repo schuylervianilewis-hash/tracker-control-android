@@ -15,7 +15,7 @@ use crate::speed_shaping_integration::{
     decode_envelope, flow_key_from_ip_packet, ENVELOPE_HEADER_LEN, MAX_PACKET_LEN,
 };
 use crate::speed_shaping_prototype::{
-    monotonic_now_ns, tc_speed_prototype_reserve, FlowOwnerMap,
+    monotonic_now_ns, record_transmitted, record_scheduler_error, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
 };
 
 /// Upper bound on packets drained per wakeup so one busy burst can't starve
@@ -166,12 +166,17 @@ impl IpRecv for SocketpairRecv {
                     if dns_port_53 { 1 } else { 0 },
                 );
                 if wait_ns > 0 {
+                    let _pending = PendingGuard::new(packet_len);
                     tokio::time::sleep(Duration::from_nanos(wait_ns as u64)).await;
+                    record_transmitted(crate::speed_shaping_prototype::Direction::Upload, packet_len);
                 } else if wait_ns < 0 {
                     // Direction is a compile-time constant above. Keep the
                     // tunnel alive if the ABI contract is ever violated.
+                    record_scheduler_error();
                     log::error!("speed limiter rejected WireGuard upload reservation");
                     tokio::time::sleep(Duration::from_secs(1)).await;
+                } else {
+                    record_transmitted(crate::speed_shaping_prototype::Direction::Upload, packet_len);
                 }
                 packets.push(ip);
             }
