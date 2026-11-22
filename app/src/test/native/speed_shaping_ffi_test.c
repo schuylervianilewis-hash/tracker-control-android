@@ -140,8 +140,18 @@ int main(int argc, char **argv) {
         put_u32_le(envelope + 12, sizeof(packet));
         memcpy(envelope + HEADER_LEN, packet, sizeof(packet));
 
+        // Match the production ordering: count before publishing the datagram
+        // so the Rust reader cannot race ahead of the enqueue update.
+        wg_enqueue(sizeof(packet));
         ssize_t sent = send(sockets[0], envelope, sizeof(envelope), 0);
         CHECK(sent == (ssize_t) sizeof(envelope), "C sender writes one UID+packet datagram");
+        if (sent != (ssize_t) sizeof(envelope))
+            wg_dequeue(sizeof(packet));
+
+        uint64_t queued_snapshot[13] = {0};
+        CHECK(snapshot(queued_snapshot, 13) == 0, "snapshot socketpair datagram backlog");
+        CHECK(queued_snapshot[4] == (sent == (ssize_t) sizeof(envelope) ? 1U : 0U),
+              "socketpair write is reflected in WireGuard pending packet count");
 
         uint8_t received[HEADER_LEN + sizeof(packet)] = {0};
         ssize_t got = recv(sockets[1], received, sizeof(received), 0);
@@ -166,6 +176,10 @@ int main(int argc, char **argv) {
                   "raw IP packet bytes remain unchanged");
             CHECK(decode(received, (size_t) got - 1, &uid, &packet_len) == -1,
                   "truncated envelope is rejected");
+            wg_dequeue(packet_len);
+            CHECK(snapshot(queued_snapshot, 13) == 0, "snapshot after socketpair handoff");
+            CHECK(queued_snapshot[4] == 0 && queued_snapshot[5] == 0,
+                  "WireGuard pending count clears after the reader hands off the packet");
         }
         close(sockets[0]);
         close(sockets[1]);
