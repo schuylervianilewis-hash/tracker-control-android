@@ -202,12 +202,16 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
                     "speed shaping: Direct %s pacing active",
                     kind == SPEED_PENDING_DIRECT_UPLOAD ? "upload" : "download");
 
-    if (args->ctx->speed_timer_fd < 0)
+    if (args->ctx->speed_timer_fd < 0) {
+        speed_limit_record_bypass(length);
         return 0;
+    }
 
     uint64_t now_ns = speed_monotonic_ns();
-    if (now_ns == 0 || (uint64_t) wait_ns > UINT64_MAX - now_ns)
+    if (now_ns == 0 || (uint64_t) wait_ns > UINT64_MAX - now_ns) {
+        speed_limit_record_bypass(length);
         return 0;
+    }
 
     struct speed_pending_metadata metadata;
     memset(&metadata, 0, sizeof(metadata));
@@ -270,6 +274,8 @@ ssize_t speed_write_tun_packet(const struct arguments *args,
     ssize_t written = write(args->tun, packet, length);
     if (written == (ssize_t) length)
         speed_limit_record(1, length);
+    else if (written < 0 || written != (ssize_t) length)
+        args->ctx->speed_dropped_packets++;
     if (written >= 0 && pcap_file != NULL)
         write_pcap_rec(packet, (size_t) written);
     return written;
