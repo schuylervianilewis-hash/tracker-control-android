@@ -160,25 +160,33 @@ fn reset_wg_pending(telemetry: &SpeedTelemetry) -> u64 {
 
 pub struct PendingGuard {
     bytes: usize,
+    completed: bool,
 }
 
 impl PendingGuard {
     /// Starts tracking a packet that has just entered an asynchronous pacing wait.
     pub fn new(bytes: usize) -> Self {
         record_wg_pending(true, bytes);
-        Self { bytes }
+        Self { bytes, completed: false }
     }
 
     /// Tracks a packet already counted by the native socketpair enqueue path.
-    /// Its Drop removes the count when the packet is handed to gotatun or discarded.
     pub fn from_enqueued(bytes: usize) -> Self {
-        Self { bytes }
+        Self { bytes, completed: false }
+    }
+
+    /// Marks successful handoff/write. Dropping an uncompleted guard is a packet drop.
+    pub fn complete(mut self) {
+        self.completed = true;
     }
 }
 
 impl Drop for PendingGuard {
     fn drop(&mut self) {
         record_wg_pending(false, self.bytes);
+        if !self.completed {
+            record_dropped_packet();
+        }
     }
 }
 
@@ -568,6 +576,24 @@ mod tests {
         record_wg_pending_on(&telemetry, false, 512);
         assert_eq!(telemetry.wg_pending_packets.load(Ordering::Relaxed), 0);
         assert_eq!(telemetry.wg_pending_bytes.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn pending_guard_counts_abandonment_but_not_successful_handoff_as_drop() {
+        let telemetry = global_telemetry();
+        let before_packets = telemetry.wg_pending_packets.load(Ordering::Relaxed);
+        let before_bytes = telemetry.wg_pending_bytes.load(Ordering::Relaxed);
+        let before_drops = telemetry.wg_dropped_packets.load(Ordering::Relaxed);
+
+        PendingGuard::new(64).complete();
+        assert_eq!(telemetry.wg_pending_packets.load(Ordering::Relaxed), before_packets);
+        assert_eq!(telemetry.wg_pending_bytes.load(Ordering::Relaxed), before_bytes);
+        assert_eq!(telemetry.wg_dropped_packets.load(Ordering::Relaxed), before_drops);
+
+        drop(PendingGuard::new(96));
+        assert_eq!(telemetry.wg_pending_packets.load(Ordering::Relaxed), before_packets);
+        assert_eq!(telemetry.wg_pending_bytes.load(Ordering::Relaxed), before_bytes);
+        assert_eq!(telemetry.wg_dropped_packets.load(Ordering::Relaxed), before_drops + 1);
     }
 
     fn key4(protocol: u8, sport: u16, dport: u16) -> FlowKey {
