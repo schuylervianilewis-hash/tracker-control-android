@@ -495,6 +495,7 @@ int write_wireguard_packet(const void *packet, size_t length, jint uid,
     if (pthread_mutex_lock(&wg_outbound_lock)) {
         // Claim and drop the packet: falling through could leak it directly.
         *write_errno = EIO;
+        speed_limit_wg_drop();
         return 1;
     }
 
@@ -508,10 +509,15 @@ int write_wireguard_packet(const void *packet, size_t length, jint uid,
         {.iov_base = (void *) packet, .iov_len = length},
     };
     size_t envelope_len = sizeof(header) + length;
+    // Publish before writev makes the datagram visible to the Rust reader.
+    // If the atomic SOCK_DGRAM write fails, roll the reservation back below.
+    speed_limit_wg_enqueue(length);
     ssize_t sent = writev(wg_outbound_fd, iov, 2);
     if (sent == (ssize_t) envelope_len)
         *written = (ssize_t) length;
     else {
+        speed_limit_wg_dequeue(length);
+        speed_limit_wg_drop();
         *written = -1; // Datagram writes are atomic; never accept a partial envelope.
         *write_errno = (sent < 0 ? errno : EIO);
     }
@@ -568,6 +574,14 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1wireguard_1stop(JNIEnv *env, jobj
     }
     if (pthread_mutex_unlock(&wg_outbound_lock))
         log_android(ANDROID_LOG_ERROR, "wg outbound unlock failed during stop");
+
+    // WgEgress stops its Rust reader before invoking this callback. Any
+    // datagrams left in the socketpair were discarded by closing the peer fd.
+    uint64_t abandoned = speed_limit_wg_reset_pending();
+    if (abandoned > 0)
+        log_android(ANDROID_LOG_WARN,
+                    "WireGuard stopped with %llu pending packets; recorded as drops",
+                    (unsigned long long) abandoned);
 }
 
 JNIEXPORT jlongArray JNICALL
