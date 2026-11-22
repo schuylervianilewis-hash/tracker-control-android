@@ -159,13 +159,11 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         row.put("vpn_active", vpnActive ? 1 : 0);
 
         SpeedLogKeeperStore store = getInstance(context);
+        SQLiteDatabase db;
         try {
-            SQLiteDatabase db = store.getWritableDatabase();
+            db = store.getWritableDatabase();
             if (db.insert(TABLE_SAMPLES, null, row) < 0)
                 return;
-            db.delete(TABLE_SAMPLES, "timestamp_ms < ?", new String[]{Long.toString(now - RETENTION_MS)});
-            db.execSQL("DELETE FROM " + TABLE_SAMPLES + " WHERE id NOT IN " +
-                    "(SELECT id FROM " + TABLE_SAMPLES + " ORDER BY id DESC LIMIT " + MAX_SAMPLES + ")");
         } catch (RuntimeException ignored) {
             return;
         }
@@ -177,6 +175,14 @@ public final class SpeedLogKeeperStore extends SQLiteOpenHelper {
         previousBypassedBytes = v[3];
         previousDroppedPackets = v[10] + v[13];
         previousSchedulerErrors = v[6] + v[14];
+
+        try {
+            db.delete(TABLE_SAMPLES, "timestamp_ms < ?", new String[]{Long.toString(now - RETENTION_MS)});
+            db.execSQL("DELETE FROM " + TABLE_SAMPLES + " WHERE id NOT IN " +
+                    "(SELECT id FROM " + TABLE_SAMPLES + " ORDER BY id DESC LIMIT " + MAX_SAMPLES + ")");
+        } catch (RuntimeException ignored) {
+            // The just-written sample remains usable; pruning retries next time.
+        }
     }
 
     private static long rate(long current, long previous, long elapsedMs) {
