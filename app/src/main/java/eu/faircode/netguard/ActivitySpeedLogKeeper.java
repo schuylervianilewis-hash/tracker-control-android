@@ -217,7 +217,7 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
                     .append("Timestamp | Upload B/s | Download B/s | Upload limit B/s | Download limit B/s")
                     .append(" | Delayed bytes | Bypassed bytes | Total queue packets | Total queue bytes")
                     .append(" | Direct packets | Direct bytes | Direct peak packets | Direct peak bytes")
-                    .append(" | WireGuard packets | WireGuard bytes | WireGuard peak packets | WireGuard peak bytes")
+                    .append(" | WireGuard pending packets | WireGuard pending bytes | WireGuard peak pending packets | WireGuard peak pending bytes")
                     .append(" | Direct drops | Direct scheduler errors | WireGuard drops | WireGuard scheduler errors")
                     .append(" | Total drops | Total scheduler errors | Shaping enabled | VPN active\n");
             for (SpeedLogKeeperStore.Sample sample : samples) {
@@ -292,7 +292,7 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
                     .append("  ↓ ").append(formatRate(sample.downloadBytesPerSecond))
                     .append("  Q ").append(sample.queuePackets)
                     .append("  Direct ").append(formatOptionalCount(sample.directQueuePackets))
-                    .append("  WireGuard ").append(formatOptionalCount(sample.wireguardQueuePackets))
+                    .append("  WG pending ").append(formatOptionalCount(sample.wireguardQueuePackets))
                     .append('\n');
         }
         return out.length() == 0 ? getString(R.string.speed_log_no_history) : out.toString().trim();
