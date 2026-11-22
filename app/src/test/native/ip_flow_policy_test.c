@@ -66,7 +66,6 @@ static int bridge_speed_record(int32_t direction, uint64_t bytes) {
 }
 static void bridge_speed_bypass(uint64_t bytes) { (void) bytes; }
 static void bridge_speed_delayed(uint64_t bytes) { (void) bytes; }
-static void bridge_speed_scheduler_error(void) {}
 static int bridge_speed_snapshot(uint64_t *out, size_t count) {
     if (out == NULL || count < 11)
         return -1;
@@ -114,7 +113,6 @@ void *__wrap_dlsym(void *handle, const char *name) {
     if (strcmp(name, "tc_speed_prototype_record") == 0) return (void *) bridge_speed_record;
     if (strcmp(name, "tc_speed_prototype_bypass") == 0) return (void *) bridge_speed_bypass;
     if (strcmp(name, "tc_speed_prototype_delayed") == 0) return (void *) bridge_speed_delayed;
-    if (strcmp(name, "tc_speed_prototype_scheduler_error") == 0) return (void *) bridge_speed_scheduler_error;
     if (strcmp(name, "tc_speed_prototype_snapshot") == 0) return (void *) bridge_speed_snapshot;
     CHECK(0, "policy bridge requests a recognised symbol");
     return NULL;
