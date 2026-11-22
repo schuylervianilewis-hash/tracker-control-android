@@ -108,9 +108,13 @@ public class ActivitySpeedLogKeeper extends AppCompatActivity {
             history.setText(R.string.speed_log_no_history);
         } else {
             SpeedLogKeeperStore.Sample latest = samples.get(0);
-            status.setText(latest.vpnActive
-                    ? (latest.shapingEnabled ? R.string.speed_log_active : R.string.speed_log_vpn_unlimited)
-                    : R.string.speed_log_vpn_stopped);
+            if (!latest.vpnActive)
+                status.setText(R.string.speed_log_vpn_stopped);
+            else if (System.currentTimeMillis() - latest.timestamp > 15_000L)
+                status.setText(R.string.speed_log_stale);
+            else
+                status.setText(latest.shapingEnabled
+                        ? R.string.speed_log_active : R.string.speed_log_vpn_unlimited);
             upload.setText(getString(R.string.speed_log_upload, formatRate(latest.uploadBytesPerSecond)));
             download.setText(getString(R.string.speed_log_download, formatRate(latest.downloadBytesPerSecond)));
             limits.setText(getString(R.string.speed_log_limits,
