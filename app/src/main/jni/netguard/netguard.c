@@ -572,12 +572,13 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1wireguard_1stop(JNIEnv *env, jobj
         close(fd);
         log_android(ANDROID_LOG_WARN, "WireGuard egress disabled, closed tx=%d", fd);
     }
-    if (pthread_mutex_unlock(&wg_outbound_lock))
-        log_android(ANDROID_LOG_ERROR, "wg outbound unlock failed during stop");
-
     // WgEgress stops its Rust reader before invoking this callback. Any
     // datagrams left in the socketpair were discarded by closing the peer fd.
+    // Reset while holding the writer lock so a restarted tunnel cannot enqueue
+    // a new packet between the reset and descriptor publication.
     uint64_t abandoned = speed_limit_wg_reset_pending();
+    if (pthread_mutex_unlock(&wg_outbound_lock))
+        log_android(ANDROID_LOG_ERROR, "wg outbound unlock failed during stop");
     if (abandoned > 0)
         log_android(ANDROID_LOG_WARN,
                     "WireGuard stopped with %llu pending packets; recorded as drops",
