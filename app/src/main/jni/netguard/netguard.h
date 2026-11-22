@@ -40,6 +40,7 @@
 #include "dns_frame.h" // libc-only: no JNI/session dependencies
 #include "udp_state.h"
 #include "speed_pending_queue.h"
+#include "speed_queue_telemetry.h"
 
 #define TAG "TrackerControl.JNI"
 
@@ -113,8 +114,7 @@ struct context {
     struct speed_pending_queue speed_queue;
     int speed_timer_fd;
     int speed_backpressure;
-    uint64_t speed_dropped_packets;
-    uint64_t speed_scheduler_errors;
+    struct speed_queue_telemetry speed_direct_telemetry;
 };
 
 struct arguments {
