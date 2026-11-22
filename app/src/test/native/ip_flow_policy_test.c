@@ -60,6 +60,19 @@ static int64_t bridge_speed_reserve(int32_t direction, int32_t uid,
     (void) direction; (void) uid; (void) bytes; (void) dns_port_53;
     return 0;
 }
+static int bridge_speed_record(int32_t direction, uint64_t bytes) {
+    (void) direction; (void) bytes;
+    return 0;
+}
+static void bridge_speed_bypass(uint64_t bytes) { (void) bytes; }
+static void bridge_speed_delayed(uint64_t bytes) { (void) bytes; }
+static void bridge_speed_scheduler_error(void) {}
+static int bridge_speed_snapshot(uint64_t *out, size_t count) {
+    if (out == NULL || count < 11)
+        return -1;
+    memset(out, 0, 11 * sizeof(*out));
+    return 0;
+}
 static void bridge_set(const jint *uids, int count, int default_tunnel) {
     CHECK(count <= 1, "fixture supports one routing override");
     bridge_override = count > 0 ? uids[0] : -1;
@@ -98,6 +111,11 @@ void *__wrap_dlsym(void *handle, const char *name) {
     if (strcmp(name, "tc_policy_dest_tunnelled") == 0) return (void *) bridge_dest_tunnelled;
     if (strcmp(name, "tc_speed_prototype_configure") == 0) return (void *) bridge_speed_configure;
     if (strcmp(name, "tc_speed_prototype_reserve") == 0) return (void *) bridge_speed_reserve;
+    if (strcmp(name, "tc_speed_prototype_record") == 0) return (void *) bridge_speed_record;
+    if (strcmp(name, "tc_speed_prototype_bypass") == 0) return (void *) bridge_speed_bypass;
+    if (strcmp(name, "tc_speed_prototype_delayed") == 0) return (void *) bridge_speed_delayed;
+    if (strcmp(name, "tc_speed_prototype_scheduler_error") == 0) return (void *) bridge_speed_scheduler_error;
+    if (strcmp(name, "tc_speed_prototype_snapshot") == 0) return (void *) bridge_speed_snapshot;
     CHECK(0, "policy bridge requests a recognised symbol");
     return NULL;
 }
