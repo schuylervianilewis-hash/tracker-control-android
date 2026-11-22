@@ -587,7 +587,7 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1speed_1snapshot(
             values[14] = (jlong) ctx->speed_scheduler_errors;
             pthread_mutex_unlock(&ctx->lock);
         } else {
-            values[13]++;
+            values[14]++;
         }
     }
 
