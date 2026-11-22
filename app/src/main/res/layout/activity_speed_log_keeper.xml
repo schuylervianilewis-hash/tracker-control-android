@@ -32,6 +32,13 @@
             android:orientation="vertical"
             android:padding="20dp">
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/speed_log_copy_all"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:text="@string/speed_log_copy_all" />
+
             <TextView
                 android:id="@+id/speed_status"
                 android:layout_width="match_parent"
