@@ -33,18 +33,17 @@ void clear(struct context *ctx) {
         ng_free(p, __FILE__, __LINE__);
     }
     ctx->ng_session = NULL;
-    ctx->speed_dropped_packets += ctx->speed_queue.packet_count;
+    speed_queue_telemetry_record_drop(&ctx->speed_direct_telemetry,
+                                       ctx->speed_queue.packet_count);
     speed_pending_queue_clear(&ctx->speed_queue);
+    speed_queue_telemetry_publish(&ctx->speed_direct_telemetry, 0, 0);
     ctx->speed_backpressure = 0;
 }
 
 static void record_speed_scheduler_error(struct context *ctx) {
     if (ctx == NULL)
         return;
-    if (pthread_mutex_lock(&ctx->lock) == 0) {
-        ctx->speed_scheduler_errors++;
-        pthread_mutex_unlock(&ctx->lock);
-    }
+    speed_queue_telemetry_record_scheduler_error(&ctx->speed_direct_telemetry);
 }
 
 static void update_speed_backpressure(const struct arguments *args,
@@ -63,7 +62,7 @@ static void update_speed_backpressure(const struct arguments *args,
         ev_tun->events = EPOLLERR;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, args->tun, ev_tun)) {
             int error = errno;
-            ctx->speed_scheduler_errors++;
+            speed_queue_telemetry_record_scheduler_error(&ctx->speed_direct_telemetry);
             log_android(ANDROID_LOG_ERROR,
                         "speed shaping: failed to pause TUN reads errno %d: %s",
                         error, strerror(error));
@@ -75,7 +74,7 @@ static void update_speed_backpressure(const struct arguments *args,
         ev_tun->events = EPOLLIN | EPOLLERR;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, args->tun, ev_tun)) {
             int error = errno;
-            ctx->speed_scheduler_errors++;
+            speed_queue_telemetry_record_scheduler_error(&ctx->speed_direct_telemetry);
             log_android(ANDROID_LOG_ERROR,
                         "speed shaping: failed to resume TUN reads errno %d: %s",
                         error, strerror(error));
@@ -397,8 +396,10 @@ void *handle_events(void *a) {
 
 cleanup:
     if (pthread_mutex_lock(&args->ctx->lock) == 0) {
-        args->ctx->speed_dropped_packets += args->ctx->speed_queue.packet_count;
+        speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry,
+                                           args->ctx->speed_queue.packet_count);
         speed_pending_queue_clear(&args->ctx->speed_queue);
+        speed_queue_telemetry_publish(&args->ctx->speed_direct_telemetry, 0, 0);
         args->ctx->speed_backpressure = 0;
         pthread_mutex_unlock(&args->ctx->lock);
     } else {
