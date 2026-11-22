@@ -15,7 +15,8 @@ use crate::speed_shaping_integration::{
     decode_envelope, flow_key_from_ip_packet, ENVELOPE_HEADER_LEN, MAX_PACKET_LEN,
 };
 use crate::speed_shaping_prototype::{
-    monotonic_now_ns, record_transmitted, record_delayed, record_scheduler_error, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
+    monotonic_now_ns, record_transmitted, record_delayed, record_scheduler_error,
+    record_dropped_packet, record_wg_pending, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
 };
 
 /// Upper bound on packets drained per wakeup so one busy burst can't starve
@@ -127,12 +128,20 @@ impl IpRecv for SocketpairRecv {
                 }
 
                 let Some(decoded) = decode_envelope(&self.envelope[..n as usize]) else {
+                    // The native writer counted this datagram before publishing it.
+                    // Retire the count even when its envelope is malformed.
+                    record_wg_pending(false, (n as usize).saturating_sub(ENVELOPE_HEADER_LEN));
+                    record_dropped_packet();
                     // Invalid framing must never be interpreted as raw IP.
                     continue;
                 };
                 let uid = decoded.uid;
                 let packet_bytes = decoded.packet;
                 let packet_len = packet_bytes.len();
+                // This packet was counted by the native socketpair writer. Keep
+                // it pending through pacing and validation until it is handed
+                // to gotatun (or discarded on one of the error paths below).
+                let _pending = PendingGuard::from_enqueued(packet_len);
                 let flow = flow_key_from_ip_packet(packet_bytes);
                 let dns_port_53 = flow.map(|key| key.is_dns_port_53()).unwrap_or(false);
 
@@ -147,13 +156,17 @@ impl IpRecv for SocketpairRecv {
                 // Reuse gotatun's packet pool after removing the C/Rust envelope.
                 let mut packet = pool.get();
                 if packet_len > packet.buf_mut().len() {
+                    record_dropped_packet();
                     continue;
                 }
                 packet.buf_mut()[..packet_len].copy_from_slice(packet_bytes);
                 packet.truncate(packet_len);
                 let ip = match packet.try_into_ip() {
                     Ok(ip) => ip,
-                    Err(_) => continue,
+                    Err(_) => {
+                        record_dropped_packet();
+                        continue;
+                    }
                 };
 
                 // The reservation is shared with the native Direct path through
@@ -166,7 +179,6 @@ impl IpRecv for SocketpairRecv {
                     if dns_port_53 { 1 } else { 0 },
                 );
                 if wait_ns > 0 {
-                    let _pending = PendingGuard::new(packet_len);
                     tokio::time::sleep(Duration::from_nanos(wait_ns as u64)).await;
                     record_delayed(packet_len);
                     record_transmitted(crate::speed_shaping_prototype::Direction::Upload, packet_len);
