@@ -48,6 +48,7 @@ static struct arguments args;
 static int bridge_route_calls;
 static jint bridge_override = -1;
 static int bridge_default = 1;
+static int bridge_missing_wg_telemetry = 0;
 
 static int bridge_abi(void) { return 2; }
 static int bridge_speed_configure(uint64_t upload, uint64_t download,
@@ -107,6 +108,9 @@ void *__wrap_dlopen(const char *name, int flags) {
 }
 void *__wrap_dlsym(void *handle, const char *name) {
     (void) handle;
+    if (bridge_missing_wg_telemetry &&
+        strncmp(name, "tc_speed_prototype_wg_", strlen("tc_speed_prototype_wg_")) == 0)
+        return NULL;
     if (strcmp(name, "tc_policy_abi_version") == 0) return (void *) bridge_abi;
     if (strcmp(name, "tc_policy_set_route_uids") == 0) return (void *) bridge_set;
     if (strcmp(name, "tc_policy_clear_route_uids") == 0) return (void *) bridge_clear;
@@ -684,6 +688,21 @@ static void test_split_tunnel_routes_outside_allowed_ips_direct(void) {
 }
 
 int main(void) {
+    // Missing diagnostic hooks must not disable the core limiter. The queue
+    // fields must be explicitly unknown rather than looking like zero backlog.
+    bridge_missing_wg_telemetry = 1;
+    CHECK(speed_limit_configure(1000, 1000, NULL, 0) == 0,
+          "optional WireGuard queue hooks do not disable speed shaping");
+    uint64_t speed_snapshot[13] = {0};
+    CHECK(speed_limit_snapshot(speed_snapshot, 13) == 0,
+          "core speed snapshot remains available without queue hooks");
+    CHECK(speed_snapshot[4] == UINT64_MAX && speed_snapshot[5] == UINT64_MAX &&
+          speed_snapshot[10] == UINT64_MAX && speed_snapshot[11] == UINT64_MAX &&
+          speed_snapshot[12] == UINT64_MAX,
+          "missing WireGuard queue hooks produce unavailable sentinels");
+    CHECK(speed_limit_wg_reset_pending() == 0,
+          "missing optional reset hook is safely ignored");
+
     memset(&context, 0, sizeof(context));
     memset(&args, 0, sizeof(args));
     args.ctx = &context;
