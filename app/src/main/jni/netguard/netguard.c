@@ -163,6 +163,9 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1init(
 #else
     speed_limit_configure(0, 0, NULL, 0);
 #endif
+    // Reset only the WireGuard queue high-water marks here, once per native
+    // VPN context. Reconfiguring/disabling the limiter later must not erase them.
+    speed_limit_reset_queue_peaks();
     // Owner state belongs to this process-wide packet-path lifecycle. Keep it
     // across ordinary WireGuard stop/start and route reloads, but do not carry
     // it into a newly initialised native context.
@@ -170,6 +173,7 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1init(
 
     struct context *ctx = ng_calloc(1, sizeof(struct context), "init");
     ctx->sdk = sdk;
+    speed_queue_telemetry_init(&ctx->speed_direct_telemetry);
     ctx->speed_timer_fd = -1;
     if (speed_pending_queue_init(&ctx->speed_queue, 512, 2 * 1024 * 1024) != 0)
         log_android(ANDROID_LOG_ERROR, "speed shaping: queue initialization failed");
@@ -491,6 +495,7 @@ int write_wireguard_packet(const void *packet, size_t length, jint uid,
     if (pthread_mutex_lock(&wg_outbound_lock)) {
         // Claim and drop the packet: falling through could leak it directly.
         *write_errno = EIO;
+        speed_limit_wg_drop();
         return 1;
     }
 
@@ -504,10 +509,15 @@ int write_wireguard_packet(const void *packet, size_t length, jint uid,
         {.iov_base = (void *) packet, .iov_len = length},
     };
     size_t envelope_len = sizeof(header) + length;
+    // Publish before writev makes the datagram visible to the Rust reader.
+    // If the atomic SOCK_DGRAM write fails, roll the reservation back below.
+    speed_limit_wg_enqueue(length);
     ssize_t sent = writev(wg_outbound_fd, iov, 2);
     if (sent == (ssize_t) envelope_len)
         *written = (ssize_t) length;
     else {
+        speed_limit_wg_dequeue(length);
+        speed_limit_wg_drop();
         *written = -1; // Datagram writes are atomic; never accept a partial envelope.
         *write_errno = (sent < 0 ? errno : EIO);
     }
@@ -562,8 +572,53 @@ Java_eu_faircode_netguard_ServiceSinkhole_jni_1wireguard_1stop(JNIEnv *env, jobj
         close(fd);
         log_android(ANDROID_LOG_WARN, "WireGuard egress disabled, closed tx=%d", fd);
     }
+    // WgEgress stops its Rust reader before invoking this callback. Any
+    // datagrams left in the socketpair were discarded by closing the peer fd.
+    // Reset while holding the writer lock so a restarted tunnel cannot enqueue
+    // a new packet between the reset and descriptor publication.
+    uint64_t abandoned = speed_limit_wg_reset_pending();
     if (pthread_mutex_unlock(&wg_outbound_lock))
         log_android(ANDROID_LOG_ERROR, "wg outbound unlock failed during stop");
+    if (abandoned > 0)
+        log_android(ANDROID_LOG_WARN,
+                    "WireGuard stopped with %llu pending packets; recorded as drops",
+                    (unsigned long long) abandoned);
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_eu_faircode_netguard_ServiceSinkhole_jni_1speed_1snapshot(
+        JNIEnv *env, jobject instance, jlong context) {
+    // UINT64_MAX is the signed -1 "unavailable" sentinel at the Java boundary.
+    // A missing/older Rust bridge must not turn absent telemetry into measured zero.
+    uint64_t rust[13];
+    for (size_t i = 0; i < 13; i++)
+        rust[i] = UINT64_MAX;
+    speed_limit_snapshot(rust, 13);
+
+    struct context *ctx = (struct context *) context;
+    jlong values[19] = {
+        (jlong) rust[0], (jlong) rust[1], (jlong) rust[2], (jlong) rust[3],
+        (jlong) rust[4], (jlong) rust[5], (jlong) rust[6],
+        (jlong) rust[7], (jlong) rust[8], (jlong) rust[9], (jlong) rust[10],
+        -1, -1, -1, -1, -1, -1, (jlong) rust[11], (jlong) rust[12]
+    };
+    if (ctx != NULL) {
+        struct speed_queue_telemetry *direct = &ctx->speed_direct_telemetry;
+        // Queue mutations stay on the epoll thread. The sampler reads atomics,
+        // not the live queue; ctx->lock does not guard queue operations.
+        values[11] = (jlong) atomic_load_explicit(&direct->packets, memory_order_relaxed);
+        values[12] = (jlong) atomic_load_explicit(&direct->bytes, memory_order_relaxed);
+        values[13] = (jlong) atomic_load_explicit(&direct->dropped_packets, memory_order_relaxed);
+        values[14] = (jlong) atomic_load_explicit(&direct->scheduler_errors, memory_order_relaxed);
+        values[15] = (jlong) atomic_load_explicit(&direct->peak_packets, memory_order_relaxed);
+        values[16] = (jlong) atomic_load_explicit(&direct->peak_bytes, memory_order_relaxed);
+    }
+
+    jlongArray result = (*env)->NewLongArray(env, 19);
+    if (result == NULL)
+        return NULL;
+    (*env)->SetLongArrayRegion(env, result, 0, 19, values);
+    return result;
 }
 
 JNIEXPORT void JNICALL

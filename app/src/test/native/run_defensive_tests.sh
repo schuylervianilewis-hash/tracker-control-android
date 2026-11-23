@@ -30,7 +30,8 @@ compile icmp_defensive_test app/src/test/native/icmp_defensive_test.c \
     app/src/main/jni/netguard/icmp.c app/src/test/native/speed_shaping_test_stub.c \
     -Wl,--wrap=close -Wl,--wrap=fcntl -Wl,--wrap=sendto -Wl,--wrap=socket
 compile ip_header_test app/src/test/native/ip_header_test.c \
-    app/src/test/native/ip_header_failfast.c app/src/main/jni/netguard/ip.c
+    app/src/test/native/ip_header_failfast.c app/src/main/jni/netguard/ip.c \
+    app/src/test/native/speed_shaping_test_stub.c
 compile tcp_window_test app/src/test/native/tcp_window_test.c \
     app/src/main/jni/netguard/tcp.c \
     app/src/test/native/speed_shaping_test_stub.c
@@ -41,6 +42,7 @@ compile udp_socket_test app/src/test/native/udp_socket_test.c \
 compile icmp_socket_test app/src/test/native/icmp_socket_test.c \
     app/src/main/jni/netguard/icmp.c app/src/test/native/speed_shaping_test_stub.c \
     -Wl,--wrap=close -Wl,--wrap=fcntl -Wl,--wrap=sendto -Wl,--wrap=socket
+compile speed_queue_telemetry_test app/src/test/native/speed_queue_telemetry_test.c
 compile speed_pending_queue_test app/src/test/native/speed_pending_queue_test.c \
     app/src/main/jni/netguard/speed_pending_queue.c
 compile ip_flow_policy_test app/src/test/native/ip_flow_policy_test.c \

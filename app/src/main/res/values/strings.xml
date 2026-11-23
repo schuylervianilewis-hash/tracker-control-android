@@ -974,4 +974,49 @@ Sincerely,\n\n]]></string>
     <string name="dns_changer_direct_note">Apps configured for Direct or Bypass continue to use Android\'s network DNS and do not use this selection.</string>
     <string name="dns_changer_wireguard_warning">With WireGuard, the selected resolver must be covered by the profile\'s AllowedIPs to travel through the WireGuard peer. The imported profile is never modified by this screen.</string>
 
+
+    <string name="speed_log_title">Speed Log Keeper</string>
+    <string name="speed_log_copy_all">Copy full speed log</string>
+    <string name="speed_log_copied">Full speed log copied to clipboard</string>
+    <string name="speed_log_waiting">Waiting for speed-shaping samples</string>
+    <string name="speed_log_no_samples">No samples recorded yet</string>
+    <string name="speed_log_limits_unknown">Limit state unavailable until first sample</string>
+    <string name="speed_log_queue_unknown">Queue state unavailable until first sample</string>
+    <string name="speed_log_active">Speed shaping enabled</string>
+    <string name="speed_log_shaping_unknown">Speed shaping status unavailable</string>
+    <string name="speed_log_vpn_unlimited">VPN active · no speed cap configured</string>
+    <string name="speed_log_vpn_stopped">VPN stopped</string>
+    <string name="speed_log_stale">Telemetry stale · VPN may have stopped unexpectedly</string>
+    <string name="speed_log_upload">Upload: %1$s</string>
+    <string name="speed_log_download">Download: %1$s</string>
+    <string name="speed_log_sample_note">Five-second aggregate sample. Rates show bytes passed by the shaper, not confirmed delivery or physical-link speed.</string>
+    <string name="speed_log_limits">Configured limits · Upload: %1$s · Download: %2$s</string>
+    <string name="speed_log_no_limits">No limit configured</string>
+    <string name="speed_log_unlimited">Unlimited</string>
+    <string name="speed_log_queue">Pending queue: %1$s packets · %2$s</string>
+    <string name="speed_log_queue_empty">Pending queue: empty</string>
+    <string name="speed_log_delayed">Bytes delayed in last sample: %1$s</string>
+    <string name="speed_log_bypassed">Bytes bypassed (DNS/exempt/fail-open) in last sample: %1$s</string>
+    <string name="speed_log_drops">Shaper/TUN packet drops in last sample: %1$s</string>
+    <string name="speed_log_errors">Scheduler errors in last sample: %1$s</string>
+    <string name="speed_log_path_queue_unknown">Per-path queue telemetry unavailable until first sample</string>
+    <string name="speed_log_direct_queue">Direct queue: %1$s packets / %2$s · peak since VPN start %3$s / %4$s</string>
+    <string name="speed_log_wireguard_queue">WireGuard pending (transport + pacing): %1$s packets / %2$s · peak since VPN start %3$s / %4$s</string>
+    <string name="speed_log_path_drops_unknown">Per-path drops unavailable until first sample</string>
+    <string name="speed_log_path_drops">Drops in last sample — Direct: %1$s · WireGuard: %2$s</string>
+    <string name="speed_log_path_errors_unknown">Per-path scheduler errors unavailable until first sample</string>
+    <string name="speed_log_path_errors">Scheduler errors in last sample — Direct: %1$s · WireGuard: %2$s</string>
+    <string name="speed_log_updated">Last sample: %1$s</string>
+    <string name="speed_log_history_title">Recent throughput samples</string>
+    <string name="speed_log_no_history">No throughput history yet</string>
+    <string name="speed_log_events_title">VPN and WireGuard events</string>
+    <string name="speed_log_no_events">No VPN or WireGuard events recorded</string>
+    <string name="speed_log_settings_summary">Aggregate upload/download rates, queue depth and shaper events only</string>
+    <string name="speed_log_privacy">This log stores aggregate speed-shaping measurements only. It does not store app identities, UIDs, domains, DNS queries, destination addresses or ports, or per-connection histories. Samples are retained for up to 24 hours (with a hard storage limit). Throughput is sampled every five seconds and represents bytes passed by the shaper, not confirmed delivery or physical-link speed.</string>
+    <string name="speed_event_vpn_started">VPN service started</string>
+    <string name="speed_event_vpn_stopped">VPN service stopped</string>
+    <string name="speed_event_wg_started">WireGuard started</string>
+    <string name="speed_event_wg_stopped">WireGuard stopped</string>
+    <string name="speed_event_wg_error">WireGuard error state</string>
+
 </resources>

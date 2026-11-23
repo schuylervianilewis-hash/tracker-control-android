@@ -15,7 +15,8 @@ use crate::speed_shaping_integration::{
     decode_envelope, flow_key_from_ip_packet, ENVELOPE_HEADER_LEN, MAX_PACKET_LEN,
 };
 use crate::speed_shaping_prototype::{
-    monotonic_now_ns, tc_speed_prototype_reserve, FlowOwnerMap,
+    monotonic_now_ns, record_transmitted, record_delayed, record_scheduler_error,
+    record_dropped_packet, record_wg_pending, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
 };
 
 /// Upper bound on packets drained per wakeup so one busy burst can't starve
@@ -23,6 +24,24 @@ use crate::speed_shaping_prototype::{
 const MAX_BATCH: usize = 32;
 const FLOW_OWNER_CAPACITY: usize = 8_192;
 const FLOW_OWNER_TTL_NS: u64 = 300_000_000_000;
+
+// Keep each outbound packet counted after it leaves the socketpair and
+// while it sits in this batch. The guard is released only when gotatun pulls
+// that packet from the returned iterator. If gotatun abandons the iterator,
+// remaining packets are recorded as drops.
+struct PendingPacketIter {
+    packets: std::vec::IntoIter<(Packet<Ip>, PendingGuard)>,
+}
+
+impl Iterator for PendingPacketIter {
+    type Item = Packet<Ip>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (packet, pending) = self.packets.next()?;
+        pending.complete();
+        Some(packet)
+    }
+}
 
 pub struct SocketpairRecv {
     afd: AsyncFd<OwnedFd>,
@@ -93,7 +112,7 @@ impl IpRecv for SocketpairRecv {
             let mut guard = self.afd.readable().await?;
             let fd = self.afd.get_ref().as_raw_fd();
 
-            let mut packets: Vec<Packet<Ip>> = Vec::new();
+            let mut packets: Vec<(Packet<Ip>, PendingGuard)> = Vec::new();
             loop {
                 if packets.len() >= MAX_BATCH {
                     break;
@@ -127,12 +146,20 @@ impl IpRecv for SocketpairRecv {
                 }
 
                 let Some(decoded) = decode_envelope(&self.envelope[..n as usize]) else {
+                    // The native writer counted this datagram before publishing it.
+                    // Retire the count even when its envelope is malformed.
+                    record_wg_pending(false, (n as usize).saturating_sub(ENVELOPE_HEADER_LEN));
+                    record_dropped_packet();
                     // Invalid framing must never be interpreted as raw IP.
                     continue;
                 };
                 let uid = decoded.uid;
                 let packet_bytes = decoded.packet;
                 let packet_len = packet_bytes.len();
+                // This packet was counted by the native socketpair writer. Keep
+                // it pending through pacing and validation until it is handed
+                // to gotatun (or discarded on one of the error paths below).
+                let pending = PendingGuard::from_enqueued(packet_len);
                 let flow = flow_key_from_ip_packet(packet_bytes);
                 let dns_port_53 = flow.map(|key| key.is_dns_port_53()).unwrap_or(false);
 
@@ -167,17 +194,22 @@ impl IpRecv for SocketpairRecv {
                 );
                 if wait_ns > 0 {
                     tokio::time::sleep(Duration::from_nanos(wait_ns as u64)).await;
+                    record_delayed(packet_len);
+                    record_transmitted(crate::speed_shaping_prototype::Direction::Upload, packet_len);
                 } else if wait_ns < 0 {
                     // Direction is a compile-time constant above. Keep the
                     // tunnel alive if the ABI contract is ever violated.
+                    record_scheduler_error();
                     log::error!("speed limiter rejected WireGuard upload reservation");
                     tokio::time::sleep(Duration::from_secs(1)).await;
+                } else {
+                    record_transmitted(crate::speed_shaping_prototype::Direction::Upload, packet_len);
                 }
-                packets.push(ip);
+                packets.push((ip, pending));
             }
 
             if !packets.is_empty() {
-                return Ok(packets.into_iter());
+                return Ok(PendingPacketIter { packets: packets.into_iter() });
             }
             // Nothing (valid) read; wait for the next readiness event.
         }

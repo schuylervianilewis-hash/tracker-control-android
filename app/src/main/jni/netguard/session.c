@@ -33,8 +33,17 @@ void clear(struct context *ctx) {
         ng_free(p, __FILE__, __LINE__);
     }
     ctx->ng_session = NULL;
+    speed_queue_telemetry_record_drop(&ctx->speed_direct_telemetry,
+                                       ctx->speed_queue.packet_count);
     speed_pending_queue_clear(&ctx->speed_queue);
+    speed_queue_telemetry_publish(&ctx->speed_direct_telemetry, 0, 0);
     ctx->speed_backpressure = 0;
+}
+
+static void record_speed_scheduler_error(struct context *ctx) {
+    if (ctx == NULL)
+        return;
+    speed_queue_telemetry_record_scheduler_error(&ctx->speed_direct_telemetry);
 }
 
 static void update_speed_backpressure(const struct arguments *args,
@@ -53,6 +62,7 @@ static void update_speed_backpressure(const struct arguments *args,
         ev_tun->events = EPOLLERR;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, args->tun, ev_tun)) {
             int error = errno;
+            speed_queue_telemetry_record_scheduler_error(&ctx->speed_direct_telemetry);
             log_android(ANDROID_LOG_ERROR,
                         "speed shaping: failed to pause TUN reads errno %d: %s",
                         error, strerror(error));
@@ -64,6 +74,7 @@ static void update_speed_backpressure(const struct arguments *args,
         ev_tun->events = EPOLLIN | EPOLLERR;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, args->tun, ev_tun)) {
             int error = errno;
+            speed_queue_telemetry_record_scheduler_error(&ctx->speed_direct_telemetry);
             log_android(ANDROID_LOG_ERROR,
                         "speed shaping: failed to resume TUN reads errno %d: %s",
                         error, strerror(error));
@@ -111,6 +122,7 @@ void *handle_events(void *a) {
     args->ctx->speed_timer_fd = timerfd_create(CLOCK_MONOTONIC,
                                                TFD_NONBLOCK | TFD_CLOEXEC);
     if (args->ctx->speed_timer_fd < 0) {
+        record_speed_scheduler_error(args->ctx);
         log_android(ANDROID_LOG_ERROR,
                     "speed shaping: timerfd create failed errno %d: %s; disabling limiter",
                     errno, strerror(errno));
@@ -120,6 +132,7 @@ void *handle_events(void *a) {
         ev_speed.data.ptr = &ev_speed;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, args->ctx->speed_timer_fd, &ev_speed)) {
             int error = errno;
+            record_speed_scheduler_error(args->ctx);
             log_android(ANDROID_LOG_ERROR,
                         "speed shaping: timerfd epoll add failed errno %d: %s; disabling limiter",
                         error, strerror(error));
@@ -382,8 +395,20 @@ void *handle_events(void *a) {
     }
 
 cleanup:
-    speed_pending_queue_clear(&args->ctx->speed_queue);
-    args->ctx->speed_backpressure = 0;
+    if (pthread_mutex_lock(&args->ctx->lock) == 0) {
+        speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry,
+                                           args->ctx->speed_queue.packet_count);
+        speed_pending_queue_clear(&args->ctx->speed_queue);
+        speed_queue_telemetry_publish(&args->ctx->speed_direct_telemetry, 0, 0);
+        args->ctx->speed_backpressure = 0;
+        pthread_mutex_unlock(&args->ctx->lock);
+    } else {
+        speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry,
+                                           args->ctx->speed_queue.packet_count);
+        speed_pending_queue_clear(&args->ctx->speed_queue);
+        speed_queue_telemetry_publish(&args->ctx->speed_direct_telemetry, 0, 0);
+        args->ctx->speed_backpressure = 0;
+    }
     if (args->ctx->speed_timer_fd >= 0) {
         if (close(args->ctx->speed_timer_fd))
             log_android(ANDROID_LOG_WARN, "speed shaping: timerfd close failed: %s",

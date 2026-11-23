@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master, main, 'feature/speed-shaping-log-keeper' ]
     tags: [ '[0-9]*' ]
   pull_request:
     branches: [ master, main, 'codex/**' ]
@@ -135,7 +135,7 @@ jobs:
           /tmp/route_flow_test
           cc $COMMON -o /tmp/ip_header_test \
             app/src/test/native/ip_header_test.c app/src/test/native/ip_header_failfast.c \
-            app/src/main/jni/netguard/ip.c
+            app/src/main/jni/netguard/ip.c app/src/test/native/speed_shaping_test_stub.c
           /tmp/ip_header_test
           cc $COMMON -o /tmp/tcp_epoll_test \
             app/src/test/native/tcp_epoll_test.c app/src/main/jni/netguard/tcp.c \

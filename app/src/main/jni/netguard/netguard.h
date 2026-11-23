@@ -40,6 +40,7 @@
 #include "dns_frame.h" // libc-only: no JNI/session dependencies
 #include "udp_state.h"
 #include "speed_pending_queue.h"
+#include "speed_queue_telemetry.h"
 
 #define TAG "TrackerControl.JNI"
 
@@ -113,6 +114,7 @@ struct context {
     struct speed_pending_queue speed_queue;
     int speed_timer_fd;
     int speed_backpressure;
+    struct speed_queue_telemetry speed_direct_telemetry;
 };
 
 struct arguments {
@@ -392,7 +394,16 @@ void clear(struct context *ctx);
 int speed_limit_configure(uint64_t upload_bytes_per_second,
                           uint64_t download_bytes_per_second,
                           const jint *exempt_uids, size_t exempt_count);
+void speed_limit_reset_queue_peaks(void);
+void speed_limit_wg_enqueue(size_t bytes);
+void speed_limit_wg_dequeue(size_t bytes);
+void speed_limit_wg_drop(void);
+uint64_t speed_limit_wg_reset_pending(void);
 int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_53);
+void speed_limit_record(int direction, size_t bytes);
+void speed_limit_record_bypass(size_t bytes);
+void speed_limit_record_delayed(size_t bytes);
+int speed_limit_snapshot(uint64_t *out, size_t out_len);
 int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
                          const uint8_t *packet, size_t length, jint uid,
                          int dns_port_53, int protocol, size_t payload_offset,

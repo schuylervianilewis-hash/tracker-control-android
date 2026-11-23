@@ -431,6 +431,8 @@ void dispatch_direct_packet(const struct arguments *args,
     if (packet == NULL || payload_offset >= length)
         return;
 
+    // Aggregate-only telemetry: count bytes handed to the Direct datapath.
+    speed_limit_record(0, length);
     const uint8_t *payload = packet + payload_offset;
     if (protocol == IPPROTO_ICMP || protocol == IPPROTO_ICMPV6)
         handle_icmp(args, packet, length, payload, uid, epoll_fd);

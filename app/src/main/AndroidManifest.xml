@@ -184,6 +184,18 @@
         </activity>
 
         <activity
+            android:name="eu.faircode.netguard.ActivitySpeedLogKeeper"
+            android:configChanges="orientation|screenSize"
+            android:exported="false"
+            android:label="@string/speed_log_title"
+            android:parentActivityName="eu.faircode.netguard.ActivitySettings"
+            android:theme="@style/AppThemeRed.NoActionBar">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="eu.faircode.netguard.ActivitySettings" />
+        </activity>
+
+        <activity
             android:name="eu.faircode.netguard.ActivityDns"
             android:configChanges="orientation|screenSize"
             android:label="@string/setting_show_resolved"

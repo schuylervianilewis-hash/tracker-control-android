@@ -14,7 +14,7 @@ use crate::callbacks::DnsSink;
 use crate::dns::DnsInspector;
 use crate::speed_shaping_integration::flow_key_from_ip_packet;
 use crate::speed_shaping_prototype::{
-    monotonic_now_ns, tc_speed_prototype_reserve, FlowOwnerMap,
+    monotonic_now_ns, record_transmitted, record_delayed, record_scheduler_error, record_dropped_packet, tc_speed_prototype_reserve, FlowOwnerMap, PendingGuard,
 };
 
 pub struct TunFdSend {
@@ -109,20 +109,42 @@ impl IpSend for TunFdSend {
             data.len(),
             if dns_port_53 { 1 } else { 0 },
         );
-        if wait_ns > 0 {
+        let pending = if wait_ns > 0 {
+            let pending = PendingGuard::new(data.len());
             tokio::time::sleep(Duration::from_nanos(wait_ns as u64)).await;
+            record_delayed(data.len());
+            Some(pending)
         } else if wait_ns < 0 {
+            let pending = PendingGuard::new(data.len());
+            record_scheduler_error();
             log::error!("speed limiter rejected WireGuard download reservation");
             tokio::time::sleep(Duration::from_secs(1)).await;
-        }
+            record_delayed(data.len());
+            Some(pending)
+        } else {
+            None
+        };
 
         let n = write_fd(self.fd.as_raw_fd(), data);
+        let full_write = n == data.len() as isize;
+        if full_write {
+            record_transmitted(crate::speed_shaping_prototype::Direction::Download, data.len());
+            if let Some(pending) = pending {
+                pending.complete();
+            }
+        } else {
+            if let Some(pending) = pending {
+                drop(pending);
+            } else {
+                record_dropped_packet();
+            }
+        }
         let (errors, streak) = record_tun_write(
             &self.write_failures_total,
             &self.write_failures_streak,
-            n == data.len() as isize,
+            full_write,
         );
-        if n != data.len() as isize {
+        if !full_write {
             // TUN write failures are transient (e.g. ENOBUFS under load) or
             // mean the VPN is being torn down, in which case Java stops us.
             // Never bubble them up: gotatun treats IpSend errors as fatal.

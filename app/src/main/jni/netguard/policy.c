@@ -32,6 +32,7 @@
 static pthread_once_t policy_once = PTHREAD_ONCE_INIT;
 static int policy_ok = 0;
 static int speed_ok = 0;
+static int speed_wg_queue_ok = 0;
 
 static int (*p_abi_version)(void) = NULL;
 static void (*p_set_route_uids)(const jint *uids, int count, int default_tunnel) = NULL;
@@ -43,6 +44,15 @@ static int (*p_speed_configure)(uint64_t upload_bps, uint64_t download_bps,
                                 const int32_t *uids, size_t uid_count) = NULL;
 static int64_t (*p_speed_reserve)(int32_t direction, int32_t uid,
                                   size_t bytes, int32_t dns_port_53) = NULL;
+static int (*p_speed_record)(int32_t direction, uint64_t bytes) = NULL;
+static void (*p_speed_bypass)(uint64_t bytes) = NULL;
+static void (*p_speed_delayed)(uint64_t bytes) = NULL;
+static int (*p_speed_snapshot)(uint64_t *out, size_t out_len) = NULL;
+static void (*p_speed_reset_queue_peaks)(void) = NULL;
+static void (*p_speed_wg_enqueue)(uint64_t bytes) = NULL;
+static void (*p_speed_wg_dequeue)(uint64_t bytes) = NULL;
+static void (*p_speed_wg_drop)(void) = NULL;
+static uint64_t (*p_speed_wg_reset_pending)(void) = NULL;
 
 // Facts the packet path reads per packet. Mirrored here rather than queried
 // across the boundary: with no per-app override configured — the shipped
@@ -67,9 +77,29 @@ static void policy_load() {
 
     p_speed_configure = dlsym(handle, "tc_speed_prototype_configure");
     p_speed_reserve = dlsym(handle, "tc_speed_prototype_reserve");
-    speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL;
+    p_speed_record = dlsym(handle, "tc_speed_prototype_record");
+    p_speed_bypass = dlsym(handle, "tc_speed_prototype_bypass");
+    p_speed_delayed = dlsym(handle, "tc_speed_prototype_delayed");
+    p_speed_snapshot = dlsym(handle, "tc_speed_prototype_snapshot");
+    p_speed_reset_queue_peaks = dlsym(handle, "tc_speed_prototype_reset_queue_peaks");
+    p_speed_wg_enqueue = dlsym(handle, "tc_speed_prototype_wg_enqueue");
+    p_speed_wg_dequeue = dlsym(handle, "tc_speed_prototype_wg_dequeue");
+    p_speed_wg_drop = dlsym(handle, "tc_speed_prototype_wg_drop");
+    p_speed_wg_reset_pending = dlsym(handle, "tc_speed_prototype_wg_reset_pending");
+    // Core shaping must remain available even if an older bridge lacks the
+    // newer queue-diagnostic hooks. Telemetry is optional and must never turn
+    // a working limiter into an unlimited one.
+    speed_ok = p_speed_configure != NULL && p_speed_reserve != NULL &&
+               p_speed_record != NULL && p_speed_bypass != NULL &&
+               p_speed_delayed != NULL && p_speed_snapshot != NULL;
+    speed_wg_queue_ok = p_speed_reset_queue_peaks != NULL &&
+                        p_speed_wg_enqueue != NULL && p_speed_wg_dequeue != NULL &&
+                        p_speed_wg_drop != NULL && p_speed_wg_reset_pending != NULL;
     if (!speed_ok)
         log_android(ANDROID_LOG_WARN, "speed shaping: shared limiter symbols unavailable");
+    else if (!speed_wg_queue_ok)
+        log_android(ANDROID_LOG_WARN,
+                    "speed shaping: WireGuard queue telemetry unavailable; limiter remains enabled");
 
     p_abi_version = dlsym(handle, "tc_policy_abi_version");
     p_set_route_uids = dlsym(handle, "tc_policy_set_route_uids");
@@ -108,11 +138,77 @@ int speed_limit_configure(uint64_t upload_bytes_per_second,
                              (const int32_t *) exempt_uids, exempt_count);
 }
 
+void speed_limit_reset_queue_peaks(void) {
+    policy_ensure();
+    if (speed_wg_queue_ok)
+        p_speed_reset_queue_peaks();
+}
+
+void speed_limit_wg_enqueue(size_t bytes) {
+    policy_ensure();
+    if (speed_wg_queue_ok)
+        p_speed_wg_enqueue((uint64_t) bytes);
+}
+
+void speed_limit_wg_dequeue(size_t bytes) {
+    policy_ensure();
+    if (speed_wg_queue_ok)
+        p_speed_wg_dequeue((uint64_t) bytes);
+}
+
+void speed_limit_wg_drop(void) {
+    policy_ensure();
+    if (speed_wg_queue_ok)
+        p_speed_wg_drop();
+}
+
+uint64_t speed_limit_wg_reset_pending(void) {
+    policy_ensure();
+    return speed_wg_queue_ok ? p_speed_wg_reset_pending() : 0;
+}
+
 int64_t speed_limit_reserve(int direction, jint uid, size_t bytes, int dns_port_53) {
     policy_ensure();
     if (!speed_ok)
         return 0;
     return p_speed_reserve(direction, uid, bytes, dns_port_53);
+}
+
+void speed_limit_record(int direction, size_t bytes) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_record(direction, (uint64_t) bytes);
+}
+
+void speed_limit_record_delayed(size_t bytes) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_delayed((uint64_t) bytes);
+}
+
+void speed_limit_record_bypass(size_t bytes) {
+    policy_ensure();
+    if (speed_ok)
+        p_speed_bypass((uint64_t) bytes);
+}
+
+int speed_limit_snapshot(uint64_t *out, size_t out_len) {
+    policy_ensure();
+    if (!speed_ok || out == NULL || out_len < 13)
+        return -1;
+    int rc = p_speed_snapshot(out, out_len);
+    if (rc != 0)
+        return rc;
+    if (!speed_wg_queue_ok) {
+        // Preserve limiter operation while refusing to present incomplete
+        // legacy WireGuard queue values as measured zeros.
+        out[4] = UINT64_MAX;
+        out[5] = UINT64_MAX;
+        out[10] = UINT64_MAX;
+        out[11] = UINT64_MAX;
+        out[12] = UINT64_MAX;
+    }
+    return 0;
 }
 
 static uint64_t speed_monotonic_ns(void) {
@@ -135,7 +231,10 @@ int speed_pending_arm(struct context *ctx) {
     }
     if (timerfd_settime(ctx->speed_timer_fd, TFD_TIMER_ABSTIME, &timer, NULL) < 0) {
         size_t dropped = ctx->speed_queue.packet_count;
+        speed_queue_telemetry_record_drop(&ctx->speed_direct_telemetry, dropped);
+        speed_queue_telemetry_record_scheduler_error(&ctx->speed_direct_telemetry);
         speed_pending_queue_clear(&ctx->speed_queue);
+        speed_queue_telemetry_publish(&ctx->speed_direct_telemetry, 0, 0);
         log_android(ANDROID_LOG_ERROR,
                     "speed shaping: timer arm failed errno %d: %s; cleared %zu queued packets",
                     errno, strerror(errno), dropped);
@@ -164,12 +263,16 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
                     "speed shaping: Direct %s pacing active",
                     kind == SPEED_PENDING_DIRECT_UPLOAD ? "upload" : "download");
 
-    if (args->ctx->speed_timer_fd < 0)
+    if (args->ctx->speed_timer_fd < 0) {
+        speed_limit_record_bypass(length);
         return 0;
+    }
 
     uint64_t now_ns = speed_monotonic_ns();
-    if (now_ns == 0 || (uint64_t) wait_ns > UINT64_MAX - now_ns)
+    if (now_ns == 0 || (uint64_t) wait_ns > UINT64_MAX - now_ns) {
+        speed_limit_record_bypass(length);
         return 0;
+    }
 
     struct speed_pending_metadata metadata;
     memset(&metadata, 0, sizeof(metadata));
@@ -191,6 +294,7 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
     if (rc == -3) {
         // Allocation pressure must not turn a TCP pacing decision into a
         // payload drop. Fail open for this packet and keep firewall policy.
+        speed_limit_record_bypass(length);
         static _Atomic int allocation_warning_logged = 0;
         if (atomic_exchange_explicit(&allocation_warning_logged, 1,
                                      memory_order_relaxed) == 0)
@@ -199,6 +303,7 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
         return 0;
     }
     if (rc != 0) {
+        speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry, 1);
         static _Atomic unsigned long queue_drops = 0;
         unsigned long count = atomic_fetch_add_explicit(&queue_drops, 1,
                                                         memory_order_relaxed) + 1;
@@ -209,6 +314,9 @@ int speed_shape_or_queue(const struct arguments *args, int direction, int kind,
         return -1;
     }
 
+    speed_queue_telemetry_publish(&args->ctx->speed_direct_telemetry,
+                                   args->ctx->speed_queue.packet_count,
+                                   args->ctx->speed_queue.queued_bytes);
     if (speed_pending_arm(args->ctx) < 0)
         return -1;
     return 1;
@@ -228,6 +336,10 @@ ssize_t speed_write_tun_packet(const struct arguments *args,
         return -1;
 
     ssize_t written = write(args->tun, packet, length);
+    if (written == (ssize_t) length)
+        speed_limit_record(1, length);
+    else if (written < 0 || written != (ssize_t) length)
+        speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry, 1);
     if (written >= 0 && pcap_file != NULL)
         write_pcap_rec(packet, (size_t) written);
     return written;
@@ -249,6 +361,7 @@ void speed_pending_dispatch_upload(const struct arguments *args,
         redirect.rport = (uint16_t) metadata->redirect_port;
         redirect_ptr = &redirect;
     }
+    speed_limit_record_delayed(length);
     dispatch_direct_packet(args, packet, length, (uint8_t) metadata->protocol,
                            metadata->payload_offset, metadata->uid,
                            redirect_ptr, epoll_fd);
@@ -261,9 +374,11 @@ void speed_pending_drain(const struct arguments *args, int epoll_fd) {
     uint64_t expirations;
     if (args->ctx->speed_timer_fd >= 0) {
         ssize_t n = read(args->ctx->speed_timer_fd, &expirations, sizeof(expirations));
-        if (n < 0 && errno != EAGAIN && errno != EINTR)
+        if (n < 0 && errno != EAGAIN && errno != EINTR) {
+            speed_queue_telemetry_record_scheduler_error(&args->ctx->speed_direct_telemetry);
             log_android(ANDROID_LOG_WARN, "speed shaping: timer read failed: %s",
                         strerror(errno));
+        }
     }
 
     for (int i = 0; i < 128; i++) {
@@ -275,6 +390,9 @@ void speed_pending_drain(const struct arguments *args, int epoll_fd) {
                                                   &packet, &length, &metadata);
         if (rc <= 0)
             break;
+        speed_queue_telemetry_publish(&args->ctx->speed_direct_telemetry,
+                                       args->ctx->speed_queue.packet_count,
+                                       args->ctx->speed_queue.queued_bytes);
 
         if (metadata.kind == SPEED_PENDING_DIRECT_UPLOAD) {
             speed_pending_dispatch_upload(args, packet, length, &metadata, epoll_fd);
@@ -283,10 +401,14 @@ void speed_pending_drain(const struct arguments *args, int epoll_fd) {
             if (written == (ssize_t) length) {
                 if (pcap_file != NULL)
                     write_pcap_rec(packet, length);
-            } else
+                speed_limit_record_delayed(length);
+                speed_limit_record(1, length);
+            } else {
+                speed_queue_telemetry_record_drop(&args->ctx->speed_direct_telemetry, 1);
                 log_android(ANDROID_LOG_WARN,
                             "speed shaping: delayed TUN write %zd/%zu failed errno %d: %s",
                             written, length, errno, strerror(errno));
+            }
         }
         free(packet);
     }
