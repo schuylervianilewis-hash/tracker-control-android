@@ -96,6 +96,7 @@ public class SpeedLogKeeperStoreTest {
         }
 
         long[] snapshot = new long[19];
+        snapshot[9] = 1; // This fixture represents shaping-enabled samples.
         snapshot[4] = 2; snapshot[5] = 200;
         snapshot[6] = 4; snapshot[10] = 3;
         snapshot[11] = 5; snapshot[12] = 500;
